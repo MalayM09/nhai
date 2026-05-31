@@ -35,7 +35,10 @@ Plenty of headroom under 20 MB. Spend the slack on a larger MobileFaceNet varian
 | --- | --- |
 | Input shape | `[1, 192, 192, 3]` |
 | Input dtype | `float32`, normalized to `[0, 1]` |
-| Output | 468 × 3 landmarks (used for EAR, MAR, PnP — never fed to identity model) |
+| Output 0 — landmarks | `[1, 1, 1, 1404]` float32 — squeeze the unit dims, then reshape to `(468, 3)`. Each row is `(x, y, z)` in **pixel space** (relative to the 192×192 input, not normalized). Mobile must rescale (x, y) back to the original face crop. The `z` coord is depth — useful for PnP but not for EAR/MAR. |
+| Output 1 — face presence score | `[1, 1, 1, 1]` float32 — sigmoid logit. Treat as confidence; gate Gate 1 on this being above some threshold (~0.5) before trusting the landmarks. |
+
+The two extra unit dimensions are an artifact of MediaPipe's TFLite export — the underlying data is genuinely just 468 landmarks × 3 coords plus a single score. Plan on `np.squeeze()` on both outputs in the JSI processor.
 
 ### ShuffleNetV2 (passive liveness, Gate 2)
 
