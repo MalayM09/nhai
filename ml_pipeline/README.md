@@ -7,7 +7,7 @@ Everything required to take open-source pretrained weights → fine-tuned, INT8-
 1. Dataset ingestion & augmentation (IMFDB fine-tune + outdoor lighting augmentations).
 2. Fine-tuning MobileFaceNet (ArcFace loss) and ShuffleNetV2 (binary spoof / live).
 3. INT8 Post-Training Quantization (PTQ) targeting < 3 MB MobileFaceNet, < 1.5 MB ShuffleNet.
-4. Evaluation: ROC curve, EER, FAR/FRR — outputs the **threshold** that ships in [../shared_contracts/](../shared_contracts/).
+4. Evaluation: **pair verification** + ROC curve + EER for face; **K-Fold** for the spoof classifier — outputs the **cosine-distance threshold** that ships in [../shared_contracts/](../shared_contracts/).
 5. Publishing final `.tflite` files into [../mobile_app/assets/models/](../mobile_app/assets/models/).
 
 ## Planned Layout
@@ -26,10 +26,11 @@ ml_pipeline/
 ├── quantization/
 │   └── ptq_int8.py           # Representative dataset + INT8 PTQ
 ├── evaluation/
-│   ├── roc_eer.py            # ROC + Equal Error Rate calculator
+│   ├── pair_verification.py  # LFW-style pos/neg pairs -> ROC -> EER (face)
+│   ├── liveness_kfold.py     # K-Fold CV for the spoof classifier
 │   └── reports/              # Generated plots, threshold export
 └── export/
-    └── publish.py            # Copies final .tflite → mobile_app/assets/models/
+    └── publish.py            # Copies final .tflite -> mobile_app/assets/models/
 ```
 
 ## Pretraining & Fine-Tuning
@@ -38,16 +39,33 @@ ml_pipeline/
 - **Fine-tune:** IMFDB for Indian demographic coverage.
 - **Augmentation:** aggressive gamma correction, synthetic shadows, Gaussian blur — simulates harsh outdoor highway sunlight.
 
-## Loss & Validation
+## Loss
 
-- Loss: **ArcFace (Additive Angular Margin Loss)** — projects embeddings onto a hypersphere with enforced angular margin.
-- Validation: K-Fold CV on the fine-tune set.
-- Operating point: pick the threshold at **EER** (FAR = FRR) on the ROC curve. That scalar is published to [../shared_contracts/thresholds.json](../shared_contracts/) and hardcoded in the mobile app.
+- **ArcFace (Additive Angular Margin Loss)** — projects embeddings onto a hypersphere with enforced angular margin.
+
+## Validation strategy (revised)
+
+The two models need different evaluation strategies:
+
+- **Face identity (MobileFaceNet)** → **pair verification**, not K-Fold.
+  - Build a balanced set of positive (same identity) and negative (different identity) image pairs from a held-out split of IMFDB + LFW.
+  - For each pair, compute L2-normalized embeddings and cosine distance.
+  - Sweep threshold, plot ROC, find **EER** (FAR = FRR).
+  - Write `EER value (cosine distance)` to [../shared_contracts/thresholds.json](../shared_contracts/thresholds.json) as `match_threshold_value` and flip `match_threshold_status` to `calibrated`.
+  - Typical operating range for ArcFace embeddings: **0.30 – 0.45** cosine distance.
+- **Liveness classifier (ShuffleNet)** → **K-Fold** is fine here; it's a small binary classifier on a curated spoof dataset.
 
 ## Quantization
 
 - INT8 Post-Training Quantization with a representative dataset of ~200 aligned 112×112 face crops.
 - Verify the per-tensor quantized model still hits EER within ~0.5 % of the FP32 baseline before publishing.
+
+## Quality gate output (informational)
+
+The mobile app rejects blurry frames *before* embedding via a Laplacian variance check (threshold 60, in [../shared_contracts/thresholds.json](../shared_contracts/thresholds.json)). The ML side should:
+
+- Run the same Laplacian filter over the evaluation set to confirm the threshold doesn't kill legitimate frames in low light.
+- If too aggressive, raise the suggested threshold in `thresholds.json` (this is a contract change — coordinate via PR).
 
 ## Environment
 
@@ -55,13 +73,15 @@ Use the repo-root `venv/` (TF 2.21, numpy). Install extras as you go:
 
 ```bash
 source ../venv/bin/activate
-pip install scikit-learn matplotlib pillow tf-keras
+pip install scikit-learn matplotlib pillow tf-keras opencv-python
 ```
+
+`opencv-python` is for the Laplacian variance sanity check.
 
 ## Handoff Rule
 
 A `.tflite` file does **not** ship to [../mobile_app/assets/models/](../mobile_app/assets/models/) until:
 
 1. Its input/output shapes match [../shared_contracts/](../shared_contracts/).
-2. INT8 size is within budget.
-3. EER & threshold are written to `evaluation/reports/`.
+2. INT8 size is within budget (full model bundle ≤ 20 MB).
+3. EER & cosine-distance threshold are written to `evaluation/reports/` AND propagated to [../shared_contracts/thresholds.json](../shared_contracts/thresholds.json).

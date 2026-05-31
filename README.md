@@ -6,10 +6,12 @@ A field-deployable, **fully offline** facial recognition + passive liveness syst
 
 | Constraint | Budget |
 | --- | --- |
-| Total application bundle size | **≤ 20 MB** |
+| Bundled `.tflite` model size (total) | **≤ 20 MB** (models only — not the whole app) |
 | End-to-end inference latency | **< 1 second** (target 300–450 ms on 3 GB RAM) |
 | Network requirement at inference time | **Zero** (sync only at base camp) |
 | Min accuracy on diverse Indian demographics | **> 95 %** |
+
+The 20 MB cap is for the bundled neural-net models, not the React Native binary. Current projection: ~6.75 MB of models (see [shared_contracts/README.md](shared_contracts/README.md)) — plenty of headroom. App-bundle size is a separate concern tracked on the mobile side.
 
 ## System Pillars
 

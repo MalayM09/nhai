@@ -1,18 +1,34 @@
 {
-  "_comment": "Frozen thresholds shared between ml_pipeline/ and mobile_app/. The match_threshold is a placeholder until the first ArcFace fine-tune + INT8 PTQ run produces the real ROC-derived EER value.",
-  "match_threshold_cosine": 0.8,
-  "match_threshold_status": "placeholder",
+  "_comment": "Frozen thresholds shared between ml_pipeline/ and mobile_app/. See shared_contracts/README.md for semantics and rationale.",
+  "match_threshold_metric": "cosine_distance",
+  "match_threshold_value": 0.40,
+  "match_threshold_status": "placeholder_pending_eer_calibration",
+  "match_threshold_notes": "Match if cosine_distance(a, b) < match_threshold_value. Embeddings MUST be L2-normalized before distance. Range [0, 2]. Real value comes from ml_pipeline/evaluation/pair_verification.py ROC -> EER.",
   "liveness_spoof_reject_prob": 0.5,
   "heuristics": {
     "ear_blink_max": 0.2,
     "ear_blink_consecutive_frames": 3,
     "mar_smile_min": 0.5,
-    "pnp_yaw_turn_degrees": 25
+    "pnp_yaw_turn_degrees": 25,
+    "laplacian_variance_min": 60
   },
   "frame_pipeline": {
     "camera_resolution": "480p",
-    "process_every_nth_frame": 3,
+    "throttle_idle_fps": 10,
+    "throttle_active_challenge_fps": 30,
     "max_inference_ms": 1000,
-    "target_inference_ms": 450
+    "target_inference_ms": 450,
+    "warmup_on_splash": true
+  },
+  "enrollment": {
+    "shots_min": 3,
+    "shots_max": 5,
+    "aggregation": "l2_normalized_centroid",
+    "require_pose_variation": true
+  },
+  "model_size_budget": {
+    "applies_to": "bundled_tflite_models_only",
+    "cap_mb": 20,
+    "current_projection_mb": 6.75
   }
 }
