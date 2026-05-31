@@ -20,6 +20,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-05-31 · 38d7731 · ml(notebooks): notebook 02 phase 1 pretrained models (BlazeFace, FaceMesh, MobileFaceNet via insightface ONNX)
 - 2026-05-31 · 4ba4a08 · ml(phase1): ship real BlazeFace + FaceMesh + MobileFaceNet .tflite; drop obsolete dummies; document FaceMesh actual output shape
 - 2026-05-31 · 5565772 · ml(notebooks): notebook 03 ShuffleNetV2 0.5× liveness baseline on CelebA-Spoof
+- 2026-06-01 · _pending_ · fix(notebooks/03): use keras.ops.* instead of raw tf.* on KerasTensors (Keras 3 functional API)
 
 ## Teammate (Mobile)
 
