@@ -1,0 +1,18 @@
+{
+  "_comment": "Frozen thresholds shared between ml_pipeline/ and mobile_app/. The match_threshold is a placeholder until the first ArcFace fine-tune + INT8 PTQ run produces the real ROC-derived EER value.",
+  "match_threshold_cosine": 0.8,
+  "match_threshold_status": "placeholder",
+  "liveness_spoof_reject_prob": 0.5,
+  "heuristics": {
+    "ear_blink_max": 0.2,
+    "ear_blink_consecutive_frames": 3,
+    "mar_smile_min": 0.5,
+    "pnp_yaw_turn_degrees": 25
+  },
+  "frame_pipeline": {
+    "camera_resolution": "480p",
+    "process_every_nth_frame": 3,
+    "max_inference_ms": 1000,
+    "target_inference_ms": 450
+  }
+}
