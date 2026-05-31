@@ -22,8 +22,9 @@ NN_phaseN_short_description.ipynb
 | --- | --- | --- | --- | --- |
 | 01 | [01_bootstrap_smoke_test.ipynb](01_bootstrap_smoke_test.ipynb) | 0 | Validate the Kaggle ↔ GitHub loop works end-to-end | No |
 | 02 | [02_phase1_pretrained_models.ipynb](02_phase1_pretrained_models.ipynb) | 1 | Download MediaPipe BlazeFace + FaceMesh and convert InsightFace MobileFaceNet ONNX → `.tflite`. Produces three real (pretrained) models to replace the dummies. | No |
+| 03 | [03_phase1_shufflenet_liveness.ipynb](03_phase1_shufflenet_liveness.ipynb) | 1 | Trains ShuffleNetV2 0.5× as a binary live-vs-spoof classifier on a 20k-image CelebA-Spoof subset. Outputs `shufflenet_liveness.tflite`. | **Yes** (T4 ×2) |
 
-The rest are added as we author them — 03 (ShuffleNet liveness baseline on CelebA-Spoof), 04 (MobileFaceNet fine-tune on Bollywood Faces), 05 (EER calibration + INT8 PTQ).
+The rest are added as we author them — 04 (MobileFaceNet fine-tune on Bollywood Faces), 05 (EER calibration + INT8 PTQ).
 
 ## How to run one
 
