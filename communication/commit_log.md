@@ -14,6 +14,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 
 - 2026-05-31 · 7129ead · chore: initialize dual-track architecture and dummy contracts
 - 2026-05-31 · d41ccd3 · docs(communication): add coordination folder with teammate kickoff prompt
+- 2026-05-31 · df03739 · docs(communication): backfill prior commit into ledger
 
 ## Teammate (Mobile)
 
