@@ -13,6 +13,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 ## Malay (ML / Infra)
 
 - 2026-05-31 · 7129ead · chore: initialize dual-track architecture and dummy contracts
+- 2026-05-31 · d41ccd3 · docs(communication): add coordination folder with teammate kickoff prompt
 
 ## Teammate (Mobile)
 
