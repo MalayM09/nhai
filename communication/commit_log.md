@@ -18,7 +18,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-05-31 · 2a0fb09 · docs: refine architecture (cosine distance, model-only 20MB, quality gate, multi-shot enrollment, adaptive throttle, warmup, pair verification)
 - 2026-05-31 · e973378 · ml(notebooks): notebook 01 bootstrap smoke test + kaggle_sync runbook
 - 2026-05-31 · 38d7731 · ml(notebooks): notebook 02 phase 1 pretrained models (BlazeFace, FaceMesh, MobileFaceNet via insightface ONNX)
-- 2026-05-31 · _pending_ · ml(phase1): ship real BlazeFace + FaceMesh + MobileFaceNet .tflite; drop obsolete dummies; document FaceMesh actual output shape
+- 2026-05-31 · 4ba4a08 · ml(phase1): ship real BlazeFace + FaceMesh + MobileFaceNet .tflite; drop obsolete dummies; document FaceMesh actual output shape
 
 ## Teammate (Mobile)
 
