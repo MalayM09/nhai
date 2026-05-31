@@ -21,8 +21,9 @@ NN_phaseN_short_description.ipynb
 | # | File | Phase | Purpose | GPU |
 | --- | --- | --- | --- | --- |
 | 01 | [01_bootstrap_smoke_test.ipynb](01_bootstrap_smoke_test.ipynb) | 0 | Validate the Kaggle ↔ GitHub loop works end-to-end | No |
+| 02 | [02_phase1_pretrained_models.ipynb](02_phase1_pretrained_models.ipynb) | 1 | Download MediaPipe BlazeFace + FaceMesh and convert InsightFace MobileFaceNet ONNX → `.tflite`. Produces three real (pretrained) models to replace the dummies. | No |
 
-The rest are added as we author them — Notebook 02 (pretrained-model conversion), 03 (ShuffleNet liveness baseline), 04 (MobileFaceNet fine-tune on Bollywood Faces), 05 (EER calibration + INT8 PTQ).
+The rest are added as we author them — 03 (ShuffleNet liveness baseline on CelebA-Spoof), 04 (MobileFaceNet fine-tune on Bollywood Faces), 05 (EER calibration + INT8 PTQ).
 
 ## How to run one
 
