@@ -14,14 +14,15 @@ Everything required to take open-source pretrained weights → fine-tuned, INT8-
 
 ```
 ml_pipeline/
+├── notebooks/                # Kaggle .ipynb runners (thin wrappers around modules)
 ├── data/
-│   ├── loaders/              # IMFDB, CASIA-WebFace, MS1MV3 PyTorch/TF loaders
+│   ├── loaders/              # Bollywood Faces, LFW, CelebA-Spoof loaders
 │   └── augment/              # Gamma shift, synthetic shadows, Gaussian blur
 ├── models/
 │   ├── mobilefacenet/        # Backbone + ArcFace head
 │   └── shufflenetv2/         # 0.5x scale anti-spoof head
 ├── training/
-│   ├── train_face.py         # MobileFaceNet + ArcFace fine-tune on IMFDB
+│   ├── train_face.py         # MobileFaceNet + ArcFace fine-tune on Bollywood
 │   └── train_liveness.py     # ShuffleNet binary classifier
 ├── quantization/
 │   └── ptq_int8.py           # Representative dataset + INT8 PTQ
@@ -32,6 +33,8 @@ ml_pipeline/
 └── export/
     └── publish.py            # Copies final .tflite -> mobile_app/assets/models/
 ```
+
+The notebooks in [notebooks/](notebooks/) are how this code actually runs — Kaggle is the runner, modules are the logic. See [../communication/kaggle_sync.md](../communication/kaggle_sync.md) for the Kaggle ↔ GitHub workflow.
 
 ## Pretraining & Fine-Tuning
 
