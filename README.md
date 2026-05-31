@@ -37,10 +37,13 @@ The contracts in [shared_contracts/](shared_contracts/) are the API between the 
 ├── mobile_app/               # React Native app (TS + native C++ JSI)
 │   └── assets/models/        # Bundled .tflite files (loaded by frontend)
 ├── shared_contracts/         # Tensor shapes, thresholds, DB schema
+├── communication/            # Async coordination between the two tracks (markdown only)
 ├── rootfiles/                # Source brief & architecture notes (read-only)
 ├── venv/                     # Python virtual env (gitignored)
 └── generate_dummies.py       # One-shot dummy .tflite generator (see below)
 ```
+
+For team coordination, see [communication/](communication/) — it contains the kickoff prompt for the mobile-side Claude Code session and the shared commit log.
 
 ## Bootstrap
 
