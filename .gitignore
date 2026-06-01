@@ -123,6 +123,7 @@ GoogleService-Info.plist
 logs/
 tmp/
 .cache/
+kaggle_downloads/    # staging area for Kaggle notebook artifacts before they're sorted into the repo
 
 # =========================
 # Do NOT ignore committed dummies

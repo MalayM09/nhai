@@ -24,6 +24,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-01 · 3d3cca6 · fix(notebooks/03): drop tf.keras.metrics.AUC (broken under T4×2 MirroredStrategy); compute AUC post-hoc via sklearn
 - 2026-06-01 · 2c18458 · fix(notebooks/03): pre-shuffle (files, labels) before tf.data cache — broke class-block batching that produced 50% val acc
 - 2026-06-01 · 72d3e06 · docs: mark Phase 1 complete in models README + add note_phase1_complete (val AUC 0.88, bundle 15.7 MB)
+- 2026-06-01 · _pending_ · ml(phase1): ship real ShuffleNetV2 0.5× liveness .tflite (CelebA-Spoof, val AUC 0.8854, 1.35 MB FP32); drop last dummy
 
 ## Teammate (Mobile)
 
