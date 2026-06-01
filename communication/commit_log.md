@@ -21,7 +21,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-05-31 · 4ba4a08 · ml(phase1): ship real BlazeFace + FaceMesh + MobileFaceNet .tflite; drop obsolete dummies; document FaceMesh actual output shape
 - 2026-05-31 · 5565772 · ml(notebooks): notebook 03 ShuffleNetV2 0.5× liveness baseline on CelebA-Spoof
 - 2026-06-01 · 15e8946 · fix(notebooks/03): use keras.ops.* instead of raw tf.* on KerasTensors (Keras 3 functional API)
-- 2026-06-01 · _pending_ · fix(notebooks/03): drop tf.keras.metrics.AUC (broken under T4×2 MirroredStrategy); compute AUC post-hoc via sklearn
+- 2026-06-01 · 3d3cca6 · fix(notebooks/03): drop tf.keras.metrics.AUC (broken under T4×2 MirroredStrategy); compute AUC post-hoc via sklearn
 
 ## Teammate (Mobile)
 
