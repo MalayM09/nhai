@@ -23,8 +23,12 @@ NN_phaseN_short_description.ipynb
 | 01 | [01_bootstrap_smoke_test.ipynb](01_bootstrap_smoke_test.ipynb) | 0 | Validate the Kaggle ↔ GitHub loop works end-to-end | No |
 | 02 | [02_phase1_pretrained_models.ipynb](02_phase1_pretrained_models.ipynb) | 1 | Download MediaPipe BlazeFace + FaceMesh and convert InsightFace MobileFaceNet ONNX → `.tflite`. Produces three real (pretrained) models to replace the dummies. | No |
 | 03 | [03_phase1_shufflenet_liveness.ipynb](03_phase1_shufflenet_liveness.ipynb) | 1 | Trains ShuffleNetV2 0.5× as a binary live-vs-spoof classifier on a 20k-image CelebA-Spoof subset. Outputs `shufflenet_liveness.tflite`. | **Yes** (T4 ×2) |
+| 04a | [04a_phase2_mobilefacenet_finetune.ipynb](04a_phase2_mobilefacenet_finetune.ipynb) | 2 | **Fine-tune branch.** Converts InsightFace `w600k_mbf.onnx` → trainable Keras model via `onnx2tf` (multi-strategy loader), adds ArcFace head, fine-tunes at low LR on Bollywood Faces. Outputs `mobilefacenet_bollywood_ft.tflite`. | **Yes** (T4 ×2) |
+| 04b | [04b_phase2_mobilefacenet_scratch.ipynb](04b_phase2_mobilefacenet_scratch.ipynb) | 2 | **From-scratch branch.** Builds MobileFaceNet architecture inline (~100 LOC), trains end-to-end with ArcFace from random init. Outputs `mobilefacenet_bollywood_scratch.tflite`. Used as the fallback if 04a's ONNX→Keras conversion fails, and as the second leg of a parallel two-account run. | **Yes** (T4 ×2) |
 
-The rest are added as we author them — 04 (MobileFaceNet fine-tune on Bollywood Faces), 05 (EER calibration + INT8 PTQ).
+**Notebooks 04a and 04b are designed to run in parallel** on two Kaggle accounts. Notebook 05 evaluates both outputs against the InsightFace baseline via pair verification and ships the EER winner.
+
+The rest are added as we author them — 05 (pair verification + EER calibration + INT8 PTQ).
 
 ## How to run one
 
