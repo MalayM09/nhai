@@ -9,7 +9,7 @@ These `.tflite` files are loaded by `react-native-fast-tflite` at app startup. T
 | `blazeface.tflite` | `[1,128,128,3]` f32 (normalized to `[-1, 1]`) | boxes `[1,896,16]`, scores `[1,896,1]` | MediaPipe `face_detection_short_range.tflite`, pretrained | **Real** (pretrained, no fine-tune) |
 | `facemesh.tflite` | `[1,192,192,3]` f32 (normalized to `[0, 1]`) | landmarks `[1,1,1,1404]` (squeeze → `(468, 3)`), presence `[1,1,1,1]` | MediaPipe `face_landmark.tflite`, pretrained | **Real** (pretrained, no fine-tune) |
 | `mobilefacenet.tflite` | `[1,112,112,3]` f32 (normalized to `[-1, 1]`, **RGB, aligned**) | `[1, 512]` embedding (**NOT pre-L2-normalized — mobile must L2-normalize before cosine distance**) | InsightFace `buffalo_s/w600k_mbf.onnx` → onnx2tf → TFLite FP32 | **Real** (pretrained on WebFace600K via ArcFace, no Bollywood fine-tune yet) |
-| `shufflenet_liveness.tflite` | `[1,112,112,3]` f32 (normalized to `[0, 1]`) | `[1, 2]` softmax (index 0 = live, 1 = spoof) | ShuffleNetV2 0.5× trained from scratch on 20k CelebA-Spoof subset, 10 epochs Adam@1e-3 | **Real** (val AUC 0.8854) |
+| `shufflenet_liveness.tflite` | `[1,112,112,3]` f32 (normalized to `[0, 1]`) | `[1, 2]` softmax (index 0 = live, 1 = spoof) | ShuffleNetV2 0.5× trained from scratch on 20k CelebA-Spoof subset, 10 epochs Adam@1e-3 | **Real** (val AUC ~0.85, see [`ml_pipeline/evaluation/reports/shufflenet_training_history.json`](../../../ml_pipeline/evaluation/reports/shufflenet_training_history.json)) |
 
 Total bundle: **~15.7 MB / 20 MB cap**. MobileFaceNet is FP32 (13 MB); INT8 PTQ in Notebook 05 will cut it to ~3.5 MB, dropping the bundle to ~6.4 MB and freeing massive headroom.
 
@@ -25,8 +25,8 @@ Total bundle: **~15.7 MB / 20 MB cap**. MobileFaceNet is FP32 (13 MB); INT8 PTQ 
 
 The current `shufflenet_liveness.tflite` is the Phase 1 baseline. Key characteristics:
 
-- **Val AUC 0.8854** on a 4k held-out CelebA-Spoof test-subject sample. Strong signal but not state-of-the-art.
-- **Some late-training overfitting** — val loss climbed from 0.68 at epoch 4 to 1.07 at epoch 10. Predictions are slightly overconfident on wrong answers.
+- **Val AUC ~0.85** on a 4k held-out CelebA-Spoof test-subject sample. Strong signal but not state-of-the-art. Two runs of the training notebook landed at 0.8515 and 0.8854 — natural variance from per-epoch shuffle reseeding + augmentation randomness; both are valid Phase 1 baselines.
+- **Late-training overfitting confirmed by the training curves** — val accuracy peaked at 0.81 around epoch 8 then degraded to 0.72 by epoch 10. Last epoch saved (not best epoch). Predictions are overconfident on wrong answers near the threshold.
 - **No face bounding-box cropping** — full frames were resized to 112×112. BB-cropping using CelebA-Spoof's `_BB.txt` files would likely lift AUC by 2–4 points but was deferred for the deadline.
 - **No early stopping** — last epoch saved (not best). For the contract's purposes this is fine because the AUC measures ranking quality and the threshold gets calibrated downstream.
 

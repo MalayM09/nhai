@@ -9,7 +9,7 @@
 | `blazeface.tflite` | 0.22 MB | pretrained, no fine-tune | n/a (detection) |
 | `facemesh.tflite` | 1.18 MB | pretrained, no fine-tune | n/a (landmarks) |
 | `mobilefacenet.tflite` | 13.00 MB FP32 | pretrained on WebFace600K via ArcFace | Perturbed-pair cosine distance 0.0072 (cell 12, Notebook 02) — real embeddings |
-| `shufflenet_liveness.tflite` | 1.35 MB FP32 | trained from scratch, 20k CelebA-Spoof, 10 epochs | **Val AUC 0.8854** |
+| `shufflenet_liveness.tflite` | 1.35 MB FP32 | trained from scratch, 20k CelebA-Spoof, 10 epochs | **Val AUC ~0.85** (two training runs landed 0.8515 and 0.8854; persistent JSON in [`ml_pipeline/evaluation/reports/`](../ml_pipeline/evaluation/reports/) shows 0.8515) |
 
 **Total bundle: ~15.7 MB / 20 MB cap.** INT8 PTQ in Notebook 05 will drop MobileFaceNet from 13 → ~3.5 MB. Final bundle projected ~6.4 MB.
 
@@ -30,8 +30,8 @@ shufflenet_liveness.tflite
 
 Be honest with the teammate about what we shipped:
 
-- **Val AUC 0.88** is solid but not state-of-the-art. The active liveness challenges (blink, head turn via FaceMesh) carry meaningful anti-spoof load per the contract.
-- **Late-training overfitting** — val loss climbed from 0.68 (epoch 4) to 1.07 (epoch 10). The model is overconfident on wrong predictions at threshold 0.5. The contract's `liveness_spoof_reject_prob` (currently 0.5) may need calibration; Notebook 05 will provide the actual operating point.
+- **Val AUC ~0.85** is solid but not state-of-the-art. The active liveness challenges (blink, head turn via FaceMesh) carry meaningful anti-spoof load per the contract.
+- **Late-training overfitting confirmed by the training curves** — val accuracy peaked at 0.81 (epoch 8) then dropped to 0.72 at epoch 10. The model is overconfident on wrong predictions at threshold 0.5. The contract's `liveness_spoof_reject_prob` (currently 0.5) may need calibration; Notebook 05 will provide the actual operating point.
 - **No BB cropping** — full frames were resized to 112×112, no use of the `_BB.txt` bounding boxes. Lift would be 2–4 AUC points; deferred for deadline.
 - **No early stopping** — last epoch saved (not best epoch's weights).
 
