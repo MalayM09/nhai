@@ -29,6 +29,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-01 · 644754f · ml(notebooks): notebooks 04a (MobileFaceNet fine-tune) + 04b (from-scratch) for parallel two-account run on Bollywood Faces
 - 2026-06-01 · bcbcf9a · fix(notebooks/04a+04b): drop mediapipe (numpy ABI + API namespace issues on Kaggle), use OpenCV Haar cascade for face cropping instead
 - 2026-06-01 · b8b4177 · ml(notebooks): notebook 05 — pair verification + EER calibration + INT8 PTQ framework (ready to plug 04a/04b artifacts in)
+- 2026-06-01 · _pending_ · fix(notebooks/04a): pre-import tf + scipy before onnx2tf install to avoid post-install numpy ABI corruption
 
 ## Teammate (Mobile)
 
