@@ -69,8 +69,7 @@ ml_pipeline/data/processed/
 **/MS1M*/
 **/Glint360K/
 
-# Eval artifacts
-ml_pipeline/evaluation/reports/*.png
+# Eval artifacts — keep PNG training curves (small, documentation-valuable)
 ml_pipeline/evaluation/reports/*.pdf
 
 # =========================
