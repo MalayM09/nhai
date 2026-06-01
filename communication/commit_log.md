@@ -32,7 +32,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-01 · 00bf261 · fix(notebooks/04a): pre-import tf + scipy before onnx2tf install to avoid post-install numpy ABI corruption
 - 2026-06-01 · 0b13646 · ml(reports): notebook 04b training history + curves (val_acc 99.8% at best epoch 11 of 14, early-stopped; instability flagged)
 - 2026-06-02 · 92f2f31 · fix(notebooks/04a): add onnx2tf -okv3 -osd flags so it actually emits a trainable Keras model (default was tflite-only)
-- 2026-06-02 · _pending_ · ml(notebooks): notebook 04c — adapter fine-tune (frozen backbone TFLite + small Keras adapter on precomputed embeddings)
+- 2026-06-02 · 8834cfc · ml(notebooks): notebook 04c — adapter fine-tune (frozen backbone TFLite + small Keras adapter on precomputed embeddings)
 
 ## Teammate (Mobile)
 
