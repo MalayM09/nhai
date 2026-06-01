@@ -27,6 +27,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-01 · 6f0709a · ml(phase1): ship real ShuffleNetV2 0.5× liveness .tflite (CelebA-Spoof, val AUC 0.8854, 1.35 MB FP32); drop last dummy
 - 2026-06-01 · ccc494a · ml(reports): add shufflenet training history + curves to eval reports; calibrate docs to JSON-verified val AUC ~0.85
 - 2026-06-01 · 644754f · ml(notebooks): notebooks 04a (MobileFaceNet fine-tune) + 04b (from-scratch) for parallel two-account run on Bollywood Faces
+- 2026-06-01 · _pending_ · fix(notebooks/04a+04b): drop mediapipe (numpy ABI + API namespace issues on Kaggle), use OpenCV Haar cascade for face cropping instead
 
 ## Teammate (Mobile)
 
