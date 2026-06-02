@@ -34,7 +34,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-02 · 92f2f31 · fix(notebooks/04a): add onnx2tf -okv3 -osd flags so it actually emits a trainable Keras model (default was tflite-only)
 - 2026-06-02 · 8834cfc · ml(notebooks): notebook 04c — adapter fine-tune (frozen backbone TFLite + small Keras adapter on precomputed embeddings)
 - 2026-06-02 · 14503b9 · fix(notebooks/04c): drop crop threads 8 -> 2, thread-local cascades (cv2 isn't thread-safe), chunk + gc.collect to avoid kernel OOM
-- 2026-06-02 · _pending_ · ml(reports + notebooks/05): adapter training curves + Notebook 05 updated to handle composed (backbone+adapter) candidate type
+- 2026-06-02 · b5148d6 · ml(reports + notebooks/05): adapter training curves + Notebook 05 updated to handle composed (backbone+adapter) candidate type
 
 ## Teammate (Mobile)
 
