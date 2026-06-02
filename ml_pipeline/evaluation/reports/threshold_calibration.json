@@ -1,0 +1,36 @@
+{
+    "match_threshold_metric": "cosine_distance",
+    "match_threshold_value": 0.8616,
+    "match_threshold_status": "calibrated",
+    "match_threshold_calibrated_from": "adapter_04c",
+    "match_threshold_winner_type": "composed",
+    "calibration_eer": 0.1101,
+    "calibration_auc": 0.9499,
+    "calibration_pairs_pos": 5000,
+    "calibration_pairs_neg": 5000,
+    "calibration_dataset": "bollywood-100-celebrities-val-split (SEED=42, VAL_SPLIT=0.1)",
+    "final_precision": "FP32 (composed: backbone + adapter, no PTQ)",
+    "final_backbone_size_mb": 13.0,
+    "final_adapter_size_mb": 2.01,
+    "final_bundle_size_mb": 15.0,
+    "all_candidates": {
+        "baseline_insightface": {
+            "auc": 0.84871544,
+            "eer": 0.21309999999999996,
+            "size_mb": 12.995353698730469,
+            "type": "single"
+        },
+        "scratch_04b": {
+            "auc": 0.51104132,
+            "eer": 0.49549999999999994,
+            "size_mb": 4.625774383544922,
+            "type": "single"
+        },
+        "adapter_04c": {
+            "auc": 0.9499489600000001,
+            "eer": 0.11009999999999998,
+            "size_mb": 15.001350402832031,
+            "type": "composed"
+        }
+    }
+}
