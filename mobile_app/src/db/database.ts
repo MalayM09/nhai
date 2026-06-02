@@ -167,3 +167,24 @@ export function markSynced(attendanceId: string): void {
 export function purgeAttendance(attendanceId: string): void {
   getDb().execute('DELETE FROM attendance WHERE id = ?', [attendanceId]);
 }
+
+/** Count attendance records logged today (by wall-clock date). */
+export function getTodayAttendanceCount(): number {
+  const now = new Date();
+  const startOfDay = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  const result = getDb().execute(
+    'SELECT COUNT(*) as cnt FROM attendance WHERE timestamp_wall >= ?',
+    [startOfDay],
+  );
+  if (!result.rows) return 0;
+  return (result.rows.item(0)?.cnt as number) ?? 0;
+}
+
+/** Delete a user and their embedding (e.g. for re-enrollment). */
+export function deleteUser(userId: string): void {
+  getDb().execute('DELETE FROM users WHERE id = ?', [userId]);
+}

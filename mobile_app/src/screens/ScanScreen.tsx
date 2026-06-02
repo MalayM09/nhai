@@ -1,24 +1,23 @@
 /**
- * ScanScreen — the heart of the app.
+ * ScanScreen — attendance verification.
  *
- * Responsibilities:
- *  1. Open front camera at 480p.
- *  2. Run a JSI frame processor with ADAPTIVE THROTTLING:
- *       • ~10 fps while idle (no face / waiting).
- *       • ~30 fps during active challenge ("Blink", "Look Left", etc.).
- *       Static frame-skipping is avoided because it can drop the single frame
- *       where the user actually blinks.
- *  3. Load BlazeFace dummy model and run one detection per throttled frame.
- *  4. Drive a status state machine: Ready → Challenge → Detecting → Verified.
- *  5. Display a minimal corporate status card (see UI aesthetic in README).
+ * Phase 3 flow:
+ *   1. User taps "Start Scan" → frame processor activates.
+ *   2. BlazeFace detects face → FaceMesh extracts landmarks → LivenessGate picks
+ *      a challenge (Blink / Smile / Turn Left / Right) and shows it in the UI.
+ *   3. User completes challenge → gate transitions to GATE_1_PASSED.
+ *   4. The next camera frame is captured and preprocessed:
+ *        - Gate 2: ShuffleNet liveness [1,112,112,3] [0,1]
+ *        - Gate 3: MobileFaceNet backbone → adapter → L2-normalize → cosine match
+ *   5. Result: Verified (name) or Not Recognised.
  *
- * Model warmup happens in App.tsx (splash phase) before this screen mounts.
- * This screen assumes the TFLite delegates are already hot.
+ * Phase 4: add face-crop affine alignment (eyes horizontal) before embedding.
  */
 
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Alert,
+  Animated,
   Linking,
   StyleSheet,
   Text,
@@ -32,19 +31,15 @@ import {
   useFrameProcessor,
 } from 'react-native-vision-camera';
 import {useTensorflowModel} from 'react-native-fast-tflite';
-import {useSharedValue, runOnJS} from 'react-native-reanimated';
+import {runOnJS, useSharedValue} from 'react-native-reanimated';
 
 import {
   MATCH_THRESHOLD_VALUE,
-  THROTTLE_IDLE_FPS,
-  THROTTLE_ACTIVE_CHALLENGE_FPS,
+  LIVENESS_SPOOF_REJECT_PROB,
 } from '../constants/thresholds';
-import {
-  Challenge,
-  EarState,
-  FaceLandmarks,
-  runGate1,
-} from '../utils/gateHeuristics';
+import {LivenessGate, DEFAULT_THRESHOLDS, type Challenge} from '../liveness/gate';
+import {reshapeFaceMeshOutput} from '../heuristics/landmarks';
+import {resizeRgbaToModelInput} from '../utils/frameUtils';
 import {findBestMatch, l2Normalize} from '../utils/embeddingUtils';
 import {loadAllUsers, UserRecord, logAttendance} from '../db/database';
 
@@ -53,325 +48,506 @@ import {loadAllUsers, UserRecord, logAttendance} from '../db/database';
 // ---------------------------------------------------------------------------
 
 type ScanState =
-  | 'ready'        // Waiting for user to start
-  | 'challenge'    // Active liveness prompt (Blink, Look Left, etc.)
-  | 'detecting'    // Gate 1 passed, running ShuffleNet + MobileFaceNet
-  | 'verified'     // Match found
-  | 'failed';      // No match / spoof detected
+  | 'ready'         // idle — "Start Scan" button shown
+  | 'positioning'   // frame processor active — waiting for face in oval
+  | 'challenge'     // gate CHALLENGED — show prompt, user performing action
+  | 'detecting'     // gate passed — running identity models
+  | 'verified'
+  | 'failed'
+  | 'no_workers';
 
-const CHALLENGE_PROMPTS: Record<Challenge, string> = {
-  blink: 'Blink your eyes',
-  smile: 'Smile',
-  look_left: 'Look Left',
-  look_right: 'Look Right',
-};
+const BLAZEFACE_SCORE_THRESHOLD = 0.6;
 
-const CHALLENGES: Challenge[] = ['blink', 'look_left', 'look_right'];
+interface Props {
+  goBack: () => void;
+}
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function ScanScreen(): React.JSX.Element {
+export default function ScanScreen({goBack}: Props): React.JSX.Element {
   const {hasPermission, requestPermission} = useCameraPermission();
   const device = useCameraDevice('front');
 
   const [scanState, setScanState] = useState<ScanState>('ready');
   const [statusMessage, setStatusMessage] = useState('Ready to Scan');
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
+  const [verifiedName, setVerifiedName] = useState('');
 
-  // Shared values visible inside the Reanimated worklet
-  const challengeActive = useSharedValue(false);
-  const lastFrameTimestamp = useSharedValue(0);
-
-  // In-memory user embeddings loaded from SQLite
-  const storedUsers = useRef<UserRecord[]>([]);
-
-  // EAR state for blink detection (mutable, persists across frames)
-  const earState = useRef<EarState>({consecutiveLowFrames: 0});
-
-  // ---------------------------------------------------------------------------
-  // Load TFLite models
-  // ---------------------------------------------------------------------------
-
-  // BlazeFace: face detection (Gate 0 — always runs)
-  const blazeface = useTensorflowModel(
-    require('../../assets/models/blazeface_dummy.tflite'),
-  );
-  // ShuffleNet: passive liveness (Gate 2 — fires only when Gate 1 passes)
-  const shufflenet = useTensorflowModel(
-    require('../../assets/models/shufflenet_dummy.tflite'),
-  );
-  // MobileFaceNet: identity embedding (Gate 3)
-  const mobilefacenet = useTensorflowModel(
-    require('../../assets/models/mobilefacenet_dummy.tflite'),
-  );
-
-  // ---------------------------------------------------------------------------
-  // Initialise
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    // Load embeddings from SQLite into memory for fast cosine matching
-    storedUsers.current = loadAllUsers();
+  // Keep a ref so worklet callbacks don't read stale state
+  const scanStateRef = useRef<ScanState>('ready');
+  const setScanStateBoth = useCallback((s: ScanState) => {
+    scanStateRef.current = s;
+    setScanState(s);
   }, []);
 
+  const storedUsers = useRef<UserRecord[]>([]);
+  const gateRef = useRef(new LivenessGate());
+
+  // Shared values accessible from the worklet
+  const gateActive = useSharedValue(false);
+  const captureNextFrame = useSharedValue(false);
+  const isChallengeSV = useSharedValue(false); // drives throttle
+  const frameCount = useSharedValue(0);
+
+  // Countdown bar (visual only — gate has its own 8 s timeout)
+  const countdownAnim = useRef(new Animated.Value(1)).current;
+  const countdownAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const challengeStarted = useRef(false);
+
   // ---------------------------------------------------------------------------
-  // Permission flow
+  // Models
   // ---------------------------------------------------------------------------
 
-  useEffect(() => {
-    if (!hasPermission) {
-      requestPermission();
-    }
-  }, [hasPermission, requestPermission]);
-
-  // ---------------------------------------------------------------------------
-  // State machine helpers (called from worklet via runOnJS)
-  // ---------------------------------------------------------------------------
-
-  const onFaceDetected = useCallback(() => {
-    if (scanState === 'ready') {
-      const challenge = CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)];
-      setActiveChallenge(challenge);
-      setStatusMessage(CHALLENGE_PROMPTS[challenge]);
-      setScanState('challenge');
-      challengeActive.value = true;
-      earState.current = {consecutiveLowFrames: 0};
-    }
-  }, [scanState, challengeActive]);
-
-  const onGate1Passed = useCallback(() => {
-    if (scanState === 'challenge') {
-      setScanState('detecting');
-      setStatusMessage('Detecting…');
-      challengeActive.value = false;
-    }
-  }, [scanState, challengeActive]);
-
-  const onMatchResult = useCallback(
-    (matched: boolean, userId?: string) => {
-      if (scanState === 'detecting') {
-        if (matched && userId) {
-          setStatusMessage(`Verified — ${userId}`);
-          setScanState('verified');
-        } else {
-          setStatusMessage('Not recognised. Try again.');
-          setScanState('failed');
-          setTimeout(() => {
-            setScanState('ready');
-            setStatusMessage('Ready to Scan');
-            setActiveChallenge(null);
-          }, 2500);
-        }
-      }
-    },
-    [scanState],
+  const blazeface = useTensorflowModel(
+    require('../../assets/models/blazeface.tflite'),
+  );
+  const facemesh = useTensorflowModel(
+    require('../../assets/models/facemesh.tflite'),
+  );
+  const shufflenet = useTensorflowModel(
+    require('../../assets/models/shufflenet_liveness.tflite'),
+  );
+  const mobilefacenet = useTensorflowModel(
+    require('../../assets/models/mobilefacenet.tflite'),
+  );
+  const mobilefacenetAdapter = useTensorflowModel(
+    require('../../assets/models/mobilefacenet_adapter.tflite'),
   );
 
   // ---------------------------------------------------------------------------
-  // Frame processor (runs as a Reanimated worklet — no React state access)
+  // Init
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!hasPermission) requestPermission();
+  }, [hasPermission, requestPermission]);
+
+  useEffect(() => {
+    const users = loadAllUsers();
+    storedUsers.current = users;
+    if (users.length === 0) {
+      setScanStateBoth('no_workers');
+      setStatusMessage('No workers enrolled yet');
+    }
+  }, [setScanStateBoth]);
+
+  // ---------------------------------------------------------------------------
+  // Identity model inference (runs on React thread after gate passes)
+  // ---------------------------------------------------------------------------
+
+  const runDetectionOnFrame = useCallback(
+    (buf: ArrayBuffer, w: number, h: number) => {
+      if (
+        shufflenet.state !== 'loaded' ||
+        mobilefacenet.state !== 'loaded' ||
+        mobilefacenetAdapter.state !== 'loaded'
+      ) {
+        setScanStateBoth('failed');
+        setStatusMessage('Models not ready. Try again.');
+        scheduleReset();
+        return;
+      }
+
+      try {
+        // Gate 2: ShuffleNet liveness — [1,112,112,3] float32 [0,1]
+        const livenessInput = resizeRgbaToModelInput(buf, w, h, 112, 112, 'zero_to_1');
+        const livenessOut = shufflenet.model!.runSync([livenessInput]);
+        const spoofProb = (livenessOut[0] as Float32Array)[1] ?? 0;
+
+        if (spoofProb > LIVENESS_SPOOF_REJECT_PROB) {
+          setScanStateBoth('failed');
+          setStatusMessage('Liveness check failed. Try again.');
+          scheduleReset();
+          return;
+        }
+
+        // Gate 3: MobileFaceNet backbone — [1,112,112,3] float32 [-1,1]
+        const embeddingInput = resizeRgbaToModelInput(buf, w, h, 112, 112, 'minus1_to_1');
+        const backboneOut = mobilefacenet.model!.runSync([embeddingInput]);
+        const rawEmb = new Float32Array(backboneOut[0] as Float32Array);
+
+        // Adapter: [1,512] → [1,512]
+        const adapterOut = mobilefacenetAdapter.model!.runSync([rawEmb]);
+        const adapted = new Float32Array(adapterOut[0] as Float32Array);
+        const normalized = l2Normalize(adapted);
+
+        const match = findBestMatch(
+          normalized,
+          storedUsers.current.map(u => ({userId: u.id, embedding: u.embedding})),
+          MATCH_THRESHOLD_VALUE,
+        );
+
+        if (match) {
+          const user = storedUsers.current.find(u => u.id === match.userId);
+          const displayName = user?.name ?? match.userId;
+          setVerifiedName(displayName);
+          setStatusMessage(`Verified — ${displayName}`);
+          setScanStateBoth('verified');
+          logAttendance({
+            id: `${match.userId}_${Date.now()}`,
+            userId: match.userId,
+            timestampWall: Date.now(),
+            timestampMonotonic: Date.now(),
+          });
+        } else {
+          setScanStateBoth('failed');
+          setStatusMessage('Not recognised. Try again.');
+          scheduleReset();
+        }
+      } catch {
+        setScanStateBoth('failed');
+        setStatusMessage('Detection error. Try again.');
+        scheduleReset();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shufflenet, mobilefacenet, mobilefacenetAdapter],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Frame update callback — called from worklet via runOnJS
+  // ---------------------------------------------------------------------------
+
+  const onFrameUpdate = useCallback(
+    (rawLandmarks: Float32Array | null, presenceLogit: number | null) => {
+      if (scanStateRef.current !== 'positioning' && scanStateRef.current !== 'challenge') {
+        return;
+      }
+
+      // Reshape FaceMesh [1,1,1,1404] flat output → 468 Point3D
+      const landmarks =
+        rawLandmarks && rawLandmarks.length >= 1404
+          ? reshapeFaceMeshOutput(rawLandmarks.slice(0, 1404) as Float32Array)
+          : null;
+
+      const result = gateRef.current.onFrame(landmarks, presenceLogit);
+
+      if (result.state === 'CHALLENGED') {
+        if (scanStateRef.current !== 'challenge') {
+          setScanStateBoth('challenge');
+          isChallengeSV.value = true;
+        }
+        if (result.prompt) {
+          setStatusMessage(result.prompt);
+          setActiveChallenge(result.currentChallenge);
+        }
+        // Start countdown bar once per challenge session
+        if (!challengeStarted.current) {
+          challengeStarted.current = true;
+          countdownAnim.setValue(1);
+          countdownAnimRef.current = Animated.timing(countdownAnim, {
+            toValue: 0,
+            duration: DEFAULT_THRESHOLDS.challengeTimeoutMs,
+            useNativeDriver: false,
+          });
+          countdownAnimRef.current.start();
+        }
+      } else if (result.state === 'GATE_1_PASSED') {
+        countdownAnimRef.current?.stop();
+        gateActive.value = false;
+        captureNextFrame.value = true; // worklet will grab the next frame
+        setScanStateBoth('detecting');
+        setStatusMessage('Verifying identity…');
+        setActiveChallenge(null);
+      } else if (result.state === 'FAILED') {
+        countdownAnimRef.current?.stop();
+        gateActive.value = false;
+        setScanStateBoth('failed');
+        setStatusMessage('Challenge timed out. Try again.');
+        setActiveChallenge(null);
+        scheduleReset();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gateActive, captureNextFrame, isChallengeSV, countdownAnim],
+  );
+
+  // Called from worklet when captureNextFrame fires — carries raw RGBA pixels
+  const onEmbeddingCapture = useCallback(
+    (buf: ArrayBuffer, w: number, h: number) => {
+      runDetectionOnFrame(buf, w, h);
+    },
+    [runDetectionOnFrame],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Frame processor (JSI worklet — runs on camera thread)
   // ---------------------------------------------------------------------------
 
   const frameProcessor = useFrameProcessor(
     frame => {
       'worklet';
 
-      // ---- Adaptive throttling ------------------------------------------------
-      // ~10 fps idle, ~30 fps during active challenge.
-      // Timestamp-based: avoids dropping the critical blink frame that static
-      // frame-count skipping would miss.
-      const targetFps = challengeActive.value
-        ? THROTTLE_ACTIVE_CHALLENGE_FPS
-        : THROTTLE_IDLE_FPS;
-      const minIntervalMs = 1000 / targetFps;
-      const nowMs = frame.timestamp / 1_000_000; // ns → ms
-      if (nowMs - lastFrameTimestamp.value < minIntervalMs) return;
-      lastFrameTimestamp.value = nowMs;
-
-      // ---- Gate 0: face detection (BlazeFace) ---------------------------------
-      const blazeModel = blazeface.model;
-      if (!blazeModel) return;
-
-      // TODO Phase 2: convert frame buffer to [1,128,128,3] float32 tensor,
-      // normalised to [-1,1]. For Phase 1 the model runs with zeros (warmup only).
-      // Real conversion happens in a C++ JSI plugin — never in JS.
-      const detectionInput = new Float32Array(1 * 128 * 128 * 3);
-      blazeModel.run([detectionInput]);
-
-      // Signal JS thread that a face was seen (stub — Phase 2 reads real output)
-      runOnJS(onFaceDetected)();
-
-      // ---- Gate 1: heuristics -------------------------------------------------
-      // Phase 1 stub: landmarks are empty arrays so EAR/MAR/PnP return their
-      // default stub values. Quality gate still runs (Laplacian on a real pixel
-      // array would be passed in Phase 2 from the YUV buffer).
-      const emptyLandmarks: FaceLandmarks = {
-        leftEye: [],
-        rightEye: [],
-        mouth: [],
-      };
-      // Stub 8×8 grey crop (all zeros = variance 0, will fail quality gate).
-      // Phase 2: pass the real 112×112 cropped face pixels.
-      const stubGray = new Uint8Array(8 * 8);
-      const gate1 = runGate1(
-        'blink', // Phase 2: use activeChallenge from shared value
-        {consecutiveLowFrames: 0},
-        emptyLandmarks,
-        0, // yaw baseline
-        0, // current yaw
-        stubGray,
-        8,
-        8,
-      );
-
-      if (!gate1.passed) return;
-      runOnJS(onGate1Passed)();
-
-      // ---- Gate 2: ShuffleNet liveness ----------------------------------------
-      const shuffleModel = shufflenet.model;
-      if (!shuffleModel) return;
-
-      const livenessInput = new Float32Array(1 * 112 * 112 * 3);
-      // run() is synchronous inside a Reanimated worklet even though the TS
-      // type is Promise<TypedArray[]> — cast is safe here.
-      const livenessOutput = shuffleModel.run([livenessInput]) as unknown as Float32Array[];
-      // output[0] = [live_prob, spoof_prob]
-      const spoofProb = (livenessOutput[0]?.[1] as number | undefined) ?? 0;
-      if (spoofProb > 0.5) {
-        runOnJS(onMatchResult)(false);
+      // --- Capture path: gate passed, grab one frame for embedding ---
+      if (captureNextFrame.value) {
+        captureNextFrame.value = false;
+        const buf = frame.toArrayBuffer();
+        runOnJS(onEmbeddingCapture)(buf, frame.width, frame.height);
         return;
       }
 
-      // ---- Gate 3: MobileFaceNet identity embedding ----------------------------
-      const faceModel = mobilefacenet.model;
-      if (!faceModel) return;
+      if (!gateActive.value) return;
 
-      // Input: [1, 112, 112, 3] float32, normalised to [-1, 1], RGB, aligned.
-      const embeddingInput = new Float32Array(1 * 112 * 112 * 3);
-      // run() is synchronous inside a Reanimated worklet (same as above)
-      const embeddingOutput = faceModel.run([embeddingInput]) as unknown as Float32Array[];
-      const rawEmbedding = new Float32Array(embeddingOutput[0]);
+      // Throttle: 10 fps idle (every 3rd frame at 30 fps camera),
+      //           30 fps during active challenge (every frame)
+      frameCount.value += 1;
+      const interval = isChallengeSV.value ? 1 : 3;
+      if (frameCount.value % interval !== 0) return;
 
-      // L2-normalise before cosine distance (required by shared_contracts)
-      const normalised = l2Normalize(rawEmbedding);
+      if (!blazeface.model || !facemesh.model) return;
 
-      // Phase 1: storedUsers is not accessible in worklet — call back to JS
-      // for the cosine-distance matching step. In Phase 2 move matching to C++.
-      runOnJS(handleEmbeddingOnJs)(normalised);
-    },
-    [blazeface, shufflenet, mobilefacenet, challengeActive, lastFrameTimestamp, onFaceDetected, onGate1Passed, onMatchResult],
-  );
-
-  // ---------------------------------------------------------------------------
-  // JS-side cosine matching (Phase 1 bridge — move to C++ in Phase 2)
-  // ---------------------------------------------------------------------------
-
-  const handleEmbeddingOnJs = useCallback(
-    (embedding: Float32Array) => {
-      const match = findBestMatch(
-        embedding,
-        storedUsers.current.map(u => ({userId: u.id, embedding: u.embedding})),
-        MATCH_THRESHOLD_VALUE,
-      );
-      if (match) {
-        // Log attendance
-        logAttendance({
-          id: `${match.userId}_${Date.now()}`,
-          userId: match.userId,
-          timestampWall: Date.now(),
-          timestampMonotonic: Date.now(), // TODO Phase 2: use device uptime (react-native-device-info or native module)
-        });
-        onMatchResult(true, match.userId);
-      } else {
-        onMatchResult(false);
+      // --- BlazeFace: detect face presence ---
+      const bfOut = blazeface.model.runSync([frame]);
+      const scores = bfOut[1] as Float32Array; // [1,896,1]
+      let hasFace = false;
+      for (let i = 0; i < scores.length; i++) {
+        // inline sigmoid
+        if (1 / (1 + Math.exp(-scores[i])) > BLAZEFACE_SCORE_THRESHOLD) {
+          hasFace = true;
+          break;
+        }
       }
+
+      if (!hasFace) {
+        runOnJS(onFrameUpdate)(null, null);
+        return;
+      }
+
+      // --- FaceMesh: extract landmarks ---
+      const fmOut = facemesh.model.runSync([frame]);
+      const rawLandmarks = fmOut[0] as Float32Array; // [1,1,1,1404]
+      const presenceLogit = (fmOut[1] as Float32Array)[0]; // scalar
+
+      runOnJS(onFrameUpdate)(rawLandmarks, presenceLogit);
     },
-    [onMatchResult],
+    [
+      blazeface.model,
+      facemesh.model,
+      onFrameUpdate,
+      onEmbeddingCapture,
+      gateActive,
+      captureNextFrame,
+      isChallengeSV,
+      frameCount,
+    ],
   );
 
   // ---------------------------------------------------------------------------
-  // Permission denied UI
+  // Scan control
+  // ---------------------------------------------------------------------------
+
+  const scheduleReset = useCallback(() => {
+    setTimeout(() => {
+      gateRef.current.reset();
+      challengeStarted.current = false;
+      isChallengeSV.value = false;
+      setScanStateBoth('ready');
+      setStatusMessage('Ready to Scan');
+      setActiveChallenge(null);
+      setVerifiedName('');
+    }, 2500);
+  }, [isChallengeSV, setScanStateBoth]);
+
+  const startScan = useCallback(() => {
+    const modelsReady =
+      blazeface.state === 'loaded' &&
+      facemesh.state === 'loaded' &&
+      shufflenet.state === 'loaded' &&
+      mobilefacenet.state === 'loaded' &&
+      mobilefacenetAdapter.state === 'loaded';
+
+    if (scanState !== 'ready' || !modelsReady) {
+      if (!modelsReady) Alert.alert('Loading', 'Models are still loading, please wait.');
+      return;
+    }
+
+    gateRef.current.reset();
+    challengeStarted.current = false;
+    gateActive.value = true;
+    isChallengeSV.value = false;
+    frameCount.value = 0;
+    setScanStateBoth('positioning');
+    setStatusMessage('Position your face in the oval…');
+  }, [
+    scanState,
+    blazeface.state,
+    facemesh.state,
+    shufflenet.state,
+    mobilefacenet.state,
+    mobilefacenetAdapter.state,
+    gateActive,
+    isChallengeSV,
+    frameCount,
+    setScanStateBoth,
+  ]);
+
+  const resetScan = useCallback(() => {
+    countdownAnimRef.current?.stop();
+    gateActive.value = false;
+    captureNextFrame.value = false;
+    gateRef.current.reset();
+    challengeStarted.current = false;
+    isChallengeSV.value = false;
+    setScanStateBoth('ready');
+    setStatusMessage('Ready to Scan');
+    setActiveChallenge(null);
+    setVerifiedName('');
+  }, [gateActive, captureNextFrame, isChallengeSV, setScanStateBoth]);
+
+  // ---------------------------------------------------------------------------
+  // Permission / device guards
   // ---------------------------------------------------------------------------
 
   if (!hasPermission) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.permissionText}>Camera permission is required.</Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => Linking.openSettings()}>
-          <Text style={styles.buttonText}>Open Settings</Text>
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Camera permission required.</Text>
+        <TouchableOpacity style={styles.textBtn} onPress={() => Linking.openSettings()}>
+          <Text style={styles.textBtnLabel}>Open Settings</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  if (device == null) {
+  if (!device) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.permissionText}>No front camera found.</Text>
+      <View style={styles.center}>
+        <Text style={styles.errorText}>No front camera found.</Text>
       </View>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Derived UI
+  // ---------------------------------------------------------------------------
+
+  const dotColor =
+    scanState === 'verified'
+      ? '#2e7d32'
+      : scanState === 'failed'
+      ? '#c62828'
+      : scanState === 'challenge'
+      ? '#f9a825'
+      : scanState === 'detecting'
+      ? '#1565c0'
+      : '#374151';
+
+  const modelsLoading =
+    blazeface.state === 'loading' ||
+    facemesh.state === 'loading' ||
+    shufflenet.state === 'loading' ||
+    mobilefacenet.state === 'loading' ||
+    mobilefacenetAdapter.state === 'loading';
+
+  const cameraActive =
+    scanState !== 'verified' && scanState !== 'failed';
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
-  const statusColor =
-    scanState === 'verified'
-      ? '#2e7d32'
-      : scanState === 'failed'
-      ? '#c62828'
-      : '#1a237e';
-
   return (
     <View style={styles.container}>
+      <TouchableOpacity style={styles.backBtn} onPress={goBack}>
+        <Text style={styles.backBtnText}>← Back</Text>
+      </TouchableOpacity>
+
       <Camera
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive={scanState !== 'verified'}
-        frameProcessor={frameProcessor}
-        // 480p is sufficient for 112×112 model input and cuts memory by 75%
-        // compared to 1080p (see shared_contracts/thresholds.json camera_resolution).
+        isActive={cameraActive}
+        pixelFormat="rgba"
+        frameProcessor={
+          scanState === 'positioning' || scanState === 'challenge' || scanState === 'detecting'
+            ? frameProcessor
+            : undefined
+        }
         photo={false}
         video={false}
         audio={false}
       />
 
-      {/* Dark overlay for readability */}
       <View style={styles.overlay} />
+      <View style={styles.ovalGuide} />
 
-      {/* Status card — corporate minimal aesthetic */}
       <View style={styles.card}>
-        <View style={[styles.statusDot, {backgroundColor: statusColor}]} />
+        <View style={[styles.statusDot, {backgroundColor: dotColor}]} />
+
         <Text style={styles.statusText}>{statusMessage}</Text>
-        {activeChallenge && scanState === 'challenge' && (
-          <Text style={styles.challengeHint}>
-            {CHALLENGE_PROMPTS[activeChallenge]}
-          </Text>
+
+        {/* Countdown bar — visible during challenge */}
+        {scanState === 'challenge' && (
+          <View style={styles.progressTrack}>
+            <Animated.View
+              style={[
+                styles.progressFill,
+                {
+                  width: countdownAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%'],
+                  }),
+                },
+              ]}
+            />
+          </View>
+        )}
+
+        {scanState === 'detecting' && (
+          <Text style={styles.hintText}>Running biometric check…</Text>
+        )}
+
+        {scanState === 'positioning' && (
+          <Text style={styles.hintText}>Move closer if the challenge doesn't appear</Text>
+        )}
+
+        {scanState === 'verified' && verifiedName ? (
+          <Text style={styles.verifiedName}>{verifiedName}</Text>
+        ) : null}
+
+        {modelsLoading && scanState === 'ready' && (
+          <Text style={styles.hintText}>Loading models…</Text>
+        )}
+
+        {(scanState === 'ready' || scanState === 'positioning') && (
+          <TouchableOpacity
+            style={[styles.actionBtn, (modelsLoading || scanState === 'positioning') && styles.btnDisabled]}
+            activeOpacity={0.85}
+            onPress={startScan}
+            disabled={modelsLoading || scanState === 'positioning'}>
+            <Text style={styles.actionBtnText}>
+              {scanState === 'positioning' ? 'Waiting for face…' : 'Start Scan'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {scanState === 'no_workers' && (
+          <Text style={styles.hintText}>Enroll workers from the home screen first.</Text>
+        )}
+
+        {scanState === 'verified' && (
+          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.85} onPress={resetScan}>
+            <Text style={styles.actionBtnText}>Scan Another</Text>
+          </TouchableOpacity>
+        )}
+
+        {scanState === 'challenge' && (
+          <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.85} onPress={resetScan}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+        )}
+
+        {scanState === 'failed' && (
+          <Text style={styles.hintText}>Resetting…</Text>
         )}
       </View>
-
-      {scanState === 'verified' && (
-        <TouchableOpacity
-          style={styles.resetButton}
-          onPress={() => {
-            setScanState('ready');
-            setStatusMessage('Ready to Scan');
-            setActiveChallenge(null);
-            challengeActive.value = false;
-          }}>
-          <Text style={styles.buttonText}>Scan Another</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Styles — corporate, minimal, muted palette
+// Styles
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
@@ -381,67 +557,99 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
+  center: {
+    flex: 1,
+    backgroundColor: '#0d1117',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.40)',
+  },
+  backBtn: {
+    position: 'absolute',
+    top: 56,
+    left: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  backBtnText: {color: '#ffffff', fontSize: 14, fontWeight: '500'},
+  ovalGuide: {
+    position: 'absolute',
+    top: '18%',
+    alignSelf: 'center',
+    width: '55%',
+    aspectRatio: 0.75,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   card: {
-    width: '88%',
+    width: '90%',
     backgroundColor: 'rgba(255,255,255,0.97)',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 24,
     marginBottom: 48,
     alignItems: 'center',
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginBottom: 10,
-  },
+  statusDot: {width: 10, height: 10, borderRadius: 5},
   statusText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1a1a2e',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     textAlign: 'center',
   },
-  challengeHint: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#555',
-    textAlign: 'center',
+  verifiedName: {fontSize: 15, color: '#2e7d32', fontWeight: '600'},
+  hintText: {fontSize: 13, color: '#6b7280', textAlign: 'center'},
+  progressTrack: {
+    width: '100%',
+    height: 4,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 2,
+    overflow: 'hidden',
   },
-  permissionText: {
-    color: '#fff',
-    fontSize: 16,
-    marginBottom: 16,
-    textAlign: 'center',
-    paddingHorizontal: 24,
+  progressFill: {height: 4, backgroundColor: '#f9a825', borderRadius: 2},
+  actionBtn: {
+    marginTop: 4,
+    backgroundColor: '#1a237e',
+    paddingHorizontal: 32,
+    paddingVertical: 13,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
   },
-  button: {
+  actionBtnText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
+  cancelBtn: {
+    marginTop: 4,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#c62828',
+    paddingHorizontal: 32,
+    paddingVertical: 11,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  cancelBtnText: {color: '#c62828', fontWeight: '600', fontSize: 14},
+  btnDisabled: {opacity: 0.45},
+  errorText: {color: '#ef5350', fontSize: 16},
+  textBtn: {
     backgroundColor: '#1a237e',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
-  resetButton: {
-    backgroundColor: '#1a237e',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 8,
-    marginBottom: 64,
-    position: 'absolute',
-    bottom: 0,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
-  },
+  textBtnLabel: {color: '#fff', fontWeight: '600', fontSize: 15},
 });

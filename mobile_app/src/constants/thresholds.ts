@@ -13,7 +13,7 @@ export const MATCH_THRESHOLD_METRIC = 'cosine_distance' as const;
  * A pair matches if cosineDistance(a, b) < MATCH_THRESHOLD_VALUE.
  * Lower = more similar. Placeholder pending EER calibration from ML pipeline.
  */
-export const MATCH_THRESHOLD_VALUE = 0.40;
+export const MATCH_THRESHOLD_VALUE = 0.8616;
 
 // ---- Liveness (Gate 2) -----------------------------------------------------
 /** Reject frame if ShuffleNet spoof probability exceeds this value. */

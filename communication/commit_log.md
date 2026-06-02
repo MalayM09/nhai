@@ -42,7 +42,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 
 ## Teammate (Mobile)
 
-_(empty — first entry lands when Phase 1 scaffold begins)_
+- 2026-05-31 · 0f0cf6e · feat(mobile): Phase 1 scaffold — RN 0.74, camera, TFLite pipeline, adaptive throttling, SQLite
 
 ---
 
