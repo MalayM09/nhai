@@ -35,7 +35,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-02 · 8834cfc · ml(notebooks): notebook 04c — adapter fine-tune (frozen backbone TFLite + small Keras adapter on precomputed embeddings)
 - 2026-06-02 · 14503b9 · fix(notebooks/04c): drop crop threads 8 -> 2, thread-local cascades (cv2 isn't thread-safe), chunk + gc.collect to avoid kernel OOM
 - 2026-06-02 · b5148d6 · ml(reports + notebooks/05): adapter training curves + Notebook 05 updated to handle composed (backbone+adapter) candidate type
-- 2026-06-02 · _pending_ · fix(notebooks/05): handle flat candidate dataset structure (files at dataset root, not in 04a/04b/04c subfolders)
+- 2026-06-02 · f1f6929 · fix(notebooks/05): handle flat candidate dataset structure (files at dataset root, not in 04a/04b/04c subfolders)
 
 ## Teammate (Mobile)
 
