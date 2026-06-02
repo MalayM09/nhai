@@ -41,7 +41,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-02 · b6f7cf2 · ml(phase3): ship composed adapter pipeline (mobilefacenet.tflite + mobilefacenet_adapter.tflite) + calibrated EER threshold 0.8616 from adapter_04c AUC 0.9499
 - 2026-06-02 · 609fa9b · mobile(consolidate): port Laplacian variance into heuristics/math.ts; remove dead utils/gateHeuristics.ts (Sahil already migrated ScanScreen.tsx to use the canonical heuristics/ + liveness/ modules)
 - 2026-06-02 · 22f9249 · mobile(phase2 math): FaceMesh output unpacker + composed-embedding helper + landmark subset extractors; no changes to ScanScreen.tsx; clear wiring note for Sahil to apply ~15 LOC swap
-- 2026-06-02 · _pending_ · docs(phase4): pitch deck + tech doc outlines, Jun 3 priorities brain-dump; ran tsc --noEmit and flagged 4 TS errors in Sahil's screen files for morning sync
+- 2026-06-02 · a0d65a3 · docs(phase4): pitch deck + tech doc outlines, Jun 3 priorities brain-dump; ran tsc --noEmit and flagged 4 TS errors in Sahil's screen files for morning sync
 
 ## Teammate (Mobile)
 
