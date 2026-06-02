@@ -53,3 +53,41 @@ export function reshapeFaceMeshOutput(flat: Float32Array): Point3D[] {
   }
   return landmarks;
 }
+
+// ────────── landmark subset extractors (for direct callers / testing) ──────────
+
+/**
+ * Pull out the 6-point EAR landmark subset for one eye.
+ * Caller decides which side — these are the SUBJECT's left or right.
+ */
+export function extractEyePoints(
+  landmarks: Point3D[],
+  side: "left" | "right",
+): Point3D[] {
+  const idxs = side === "left" ? LEFT_EYE_EAR_INDICES : RIGHT_EYE_EAR_INDICES;
+  return idxs.map((i) => landmarks[i]);
+}
+
+/**
+ * Pull out the 6-point MAR landmark subset (mouth contour).
+ */
+export function extractMouthPoints(landmarks: Point3D[]): Point3D[] {
+  return MOUTH_MAR_INDICES.map((i) => landmarks[i]);
+}
+
+/**
+ * Pull out the 3 key landmarks the simplified yaw estimator uses
+ * (nose tip + both outer eye corners). Useful when you want to inspect or
+ * log them without re-running the full yaw computation.
+ */
+export function extractYawAnchors(landmarks: Point3D[]): {
+  noseTip: Point3D;
+  rightEyeOuter: Point3D;
+  leftEyeOuter: Point3D;
+} {
+  return {
+    noseTip: landmarks[NOSE_TIP_INDEX],
+    rightEyeOuter: landmarks[RIGHT_EYE_OUTER_INDEX],
+    leftEyeOuter: landmarks[LEFT_EYE_OUTER_INDEX],
+  };
+}
