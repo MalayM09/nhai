@@ -7,7 +7,7 @@ Pure-TypeScript math + state machine for the active liveness challenge layer of 
 | File | Purpose |
 | --- | --- |
 | [`landmarks.ts`](landmarks.ts) | MediaPipe FaceMesh landmark indices (EAR, MAR, key reference points) + a helper to reshape FaceMesh's `[1,1,1,1404]` output into `(468, 3)` |
-| [`math.ts`](math.ts) | Stateless functions: `computeEAR`, `computeMAR`, `computeYawDegrees`, `faceIsPresent` |
+| [`math.ts`](math.ts) | Stateless functions: `computeEAR`, `computeMAR`, `computeYawDegrees`, `faceIsPresent`, `computeLaplacianVariance`, `frameIsSharp` |
 | [`../liveness/gate.ts`](../liveness/gate.ts) | The `LivenessGate` state machine that wraps the math + handles challenges + timeouts |
 
 ## How it plugs into the camera pipeline

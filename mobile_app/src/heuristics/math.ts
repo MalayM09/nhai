@@ -125,3 +125,62 @@ export function faceIsPresent(presenceLogit: number, threshold = 0.5): boolean {
   const prob = 1 / (1 + Math.exp(-presenceLogit));
   return prob > threshold;
 }
+
+// ────────── Laplacian variance — frame quality / blur detection ──────────
+
+/**
+ * Compute the variance of the Laplacian of a grayscale image. Higher value
+ * means sharper image; low value means blurry. This is the standard "is the
+ * frame in focus" check.
+ *
+ * Threshold (per contract): variance ≥ 60 = sharp enough for embedding.
+ *
+ * @param grayPixels  Flat Uint8 array of grayscale pixel values (row-major)
+ * @param width       Image width in pixels
+ * @param height      Image height in pixels
+ *
+ * Phase 1: this runs in JS. Acceptable on a downsampled face crop (e.g. 64×64).
+ * Phase 2: move into the C++ JSI frame processor using OpenCV for ~10× speedup.
+ */
+export function computeLaplacianVariance(
+  grayPixels: Uint8Array,
+  width: number,
+  height: number,
+): number {
+  // 3×3 Laplacian kernel:  0  1  0
+  //                        1 -4  1
+  //                        0  1  0
+  let sum = 0;
+  let sumSq = 0;
+  let count = 0;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      const v =
+        grayPixels[idx - width] +
+        grayPixels[idx - 1] +
+        -4 * grayPixels[idx] +
+        grayPixels[idx + 1] +
+        grayPixels[idx + width];
+      sum += v;
+      sumSq += v * v;
+      count += 1;
+    }
+  }
+  if (count === 0) return 0;
+  const mean = sum / count;
+  return sumSq / count - mean * mean;
+}
+
+/**
+ * Convenience: returns true when the frame is sharp enough to feed into the
+ * downstream identity model. Uses the contract default of variance ≥ 60.
+ */
+export function frameIsSharp(
+  grayPixels: Uint8Array,
+  width: number,
+  height: number,
+  minVariance = 60,
+): boolean {
+  return computeLaplacianVariance(grayPixels, width, height) >= minVariance;
+}

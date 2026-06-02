@@ -39,6 +39,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-02 · f352b17 · fix(notebooks/05): remove duplicate eval-loop cell (caused TypeError after the first pass succeeded with adapter winning AUC 0.95)
 - 2026-06-02 · 0f043bc · fix(notebooks/05): handle composed-winner path (ship backbone+adapter FP32, no PTQ); register ArcFaceHead custom_objects for keras load; fix stale embed_all call in plots
 - 2026-06-02 · b6f7cf2 · ml(phase3): ship composed adapter pipeline (mobilefacenet.tflite + mobilefacenet_adapter.tflite) + calibrated EER threshold 0.8616 from adapter_04c AUC 0.9499
+- 2026-06-02 · _pending_ · mobile(consolidate): port Laplacian variance into heuristics/math.ts; remove dead utils/gateHeuristics.ts (Sahil already migrated ScanScreen.tsx to use the canonical heuristics/ + liveness/ modules)
 
 ## Teammate (Mobile)
 
