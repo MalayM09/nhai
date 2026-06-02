@@ -69,8 +69,7 @@ ml_pipeline/data/processed/
 **/MS1M*/
 **/Glint360K/
 
-# Eval artifacts
-ml_pipeline/evaluation/reports/*.png
+# Eval artifacts — keep PNG training curves (small, documentation-valuable)
 ml_pipeline/evaluation/reports/*.pdf
 
 # =========================
@@ -123,6 +122,7 @@ GoogleService-Info.plist
 logs/
 tmp/
 .cache/
+kaggle_downloads/    # staging area for Kaggle notebook artifacts before they're sorted into the repo
 
 # =========================
 # Do NOT ignore committed dummies

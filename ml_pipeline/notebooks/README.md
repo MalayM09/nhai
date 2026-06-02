@@ -22,8 +22,13 @@ NN_phaseN_short_description.ipynb
 | --- | --- | --- | --- | --- |
 | 01 | [01_bootstrap_smoke_test.ipynb](01_bootstrap_smoke_test.ipynb) | 0 | Validate the Kaggle ↔ GitHub loop works end-to-end | No |
 | 02 | [02_phase1_pretrained_models.ipynb](02_phase1_pretrained_models.ipynb) | 1 | Download MediaPipe BlazeFace + FaceMesh and convert InsightFace MobileFaceNet ONNX → `.tflite`. Produces three real (pretrained) models to replace the dummies. | No |
+| 03 | [03_phase1_shufflenet_liveness.ipynb](03_phase1_shufflenet_liveness.ipynb) | 1 | Trains ShuffleNetV2 0.5× as a binary live-vs-spoof classifier on a 20k-image CelebA-Spoof subset. Outputs `shufflenet_liveness.tflite`. | **Yes** (T4 ×2) |
+| 04a | [04a_phase2_mobilefacenet_finetune.ipynb](04a_phase2_mobilefacenet_finetune.ipynb) | 2 | **Fine-tune branch.** Converts InsightFace `w600k_mbf.onnx` → trainable Keras model via `onnx2tf` (multi-strategy loader), adds ArcFace head, fine-tunes at low LR on Bollywood Faces. Outputs `mobilefacenet_bollywood_ft.tflite`. | **Yes** (T4 ×2) |
+| 04b | [04b_phase2_mobilefacenet_scratch.ipynb](04b_phase2_mobilefacenet_scratch.ipynb) | 2 | **From-scratch branch.** Builds MobileFaceNet architecture inline (~100 LOC), trains end-to-end with ArcFace from random init. Outputs `mobilefacenet_bollywood_scratch.tflite`. Used as the fallback if 04a's ONNX→Keras conversion fails, and as the second leg of a parallel two-account run. | **Yes** (T4 ×2) |
+| 04c | [04c_phase2_mobilefacenet_adapter.ipynb](04c_phase2_mobilefacenet_adapter.ipynb) | 2 | **Adapter branch.** Sidesteps the brittle ONNX→Keras conversion entirely. Uses `mobilefacenet.tflite` as a frozen feature extractor, trains a small residual Keras adapter (~530k params, ~2 MB FP32) with ArcFace on precomputed embeddings. Outputs `mobilefacenet_adapter.tflite` — mobile loads it sequentially after the backbone. | No (CPU) |
+| 05 | [05_phase3_eer_calibration_and_int8_ptq.ipynb](05_phase3_eer_calibration_and_int8_ptq.ipynb) | 3 | Pair-verification eval of all three MobileFaceNet candidates (baseline + 04a + 04b) on Bollywood held-out val set → ROC + AUC + EER. Picks the EER winner, applies INT8 PTQ, verifies INT8 EER stays within 0.5% of FP32. Also INT8-quantizes ShuffleNet liveness (if `.keras` attached). Emits `threshold_calibration.json` for the contract update. | No (CPU is fine) |
 
-The rest are added as we author them — 03 (ShuffleNet liveness baseline on CelebA-Spoof), 04 (MobileFaceNet fine-tune on Bollywood Faces), 05 (EER calibration + INT8 PTQ).
+**Notebooks 04a and 04b are designed to run in parallel** on two Kaggle accounts. Notebook 05 evaluates both outputs against the InsightFace baseline via pair verification and ships the EER winner.
 
 ## How to run one
 

@@ -1,9 +1,13 @@
 {
   "_comment": "Frozen thresholds shared between ml_pipeline/ and mobile_app/. See shared_contracts/README.md for semantics and rationale.",
   "match_threshold_metric": "cosine_distance",
-  "match_threshold_value": 0.40,
-  "match_threshold_status": "placeholder_pending_eer_calibration",
-  "match_threshold_notes": "Match if cosine_distance(a, b) < match_threshold_value. Embeddings MUST be L2-normalized before distance. Range [0, 2]. Real value comes from ml_pipeline/evaluation/pair_verification.py ROC -> EER.",
+  "match_threshold_value": 0.8616,
+  "match_threshold_status": "calibrated",
+  "match_threshold_calibrated_from": "adapter_04c (composed: mobilefacenet.tflite backbone + mobilefacenet_adapter.tflite)",
+  "match_threshold_calibration_auc": 0.9499,
+  "match_threshold_calibration_eer": 0.1101,
+  "match_threshold_calibration_dataset": "bollywood-100-celebrities-val-split (SEED=42, VAL_SPLIT=0.1), 5000 pos + 5000 neg pairs",
+  "match_threshold_notes": "Match if cosine_distance(a, b) < match_threshold_value. Embeddings MUST be L2-normalized before distance. Range [0, 2]. The composed pipeline is image -> mobilefacenet.tflite -> raw 512-D -> mobilefacenet_adapter.tflite -> adapted 512-D -> L2-normalize -> cosine distance vs stored template.",
   "liveness_spoof_reject_prob": 0.5,
   "heuristics": {
     "ear_blink_max": 0.2,
@@ -29,6 +33,13 @@
   "model_size_budget": {
     "applies_to": "bundled_tflite_models_only",
     "cap_mb": 20,
-    "current_projection_mb": 6.75
+    "shipped_total_mb": 17.79,
+    "breakdown": {
+      "blazeface.tflite": 0.22,
+      "facemesh.tflite": 1.18,
+      "mobilefacenet.tflite": 13.0,
+      "mobilefacenet_adapter.tflite": 2.01,
+      "shufflenet_liveness.tflite": 1.35
+    }
   }
 }
