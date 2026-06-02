@@ -37,6 +37,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-02 · b5148d6 · ml(reports + notebooks/05): adapter training curves + Notebook 05 updated to handle composed (backbone+adapter) candidate type
 - 2026-06-02 · f1f6929 · fix(notebooks/05): handle flat candidate dataset structure (files at dataset root, not in 04a/04b/04c subfolders)
 - 2026-06-02 · f352b17 · fix(notebooks/05): remove duplicate eval-loop cell (caused TypeError after the first pass succeeded with adapter winning AUC 0.95)
+- 2026-06-02 · _pending_ · fix(notebooks/05): handle composed-winner path (ship backbone+adapter FP32, no PTQ); register ArcFaceHead custom_objects for keras load; fix stale embed_all call in plots
 
 ## Teammate (Mobile)
 
