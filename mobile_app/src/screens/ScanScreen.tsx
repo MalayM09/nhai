@@ -458,7 +458,7 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={cameraActive}
-        pixelFormat="rgba"
+        pixelFormat="rgb"
         frameProcessor={
           scanState === 'positioning' || scanState === 'challenge' || scanState === 'detecting'
             ? frameProcessor

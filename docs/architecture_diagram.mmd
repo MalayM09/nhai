@@ -1,0 +1,51 @@
+%%{init: {
+  "theme": "neutral",
+  "themeVariables": {
+    "fontFamily": "Inter, system-ui, sans-serif",
+    "fontSize": "14px",
+    "primaryColor": "#1e3a5f",
+    "primaryTextColor": "#ffffff",
+    "primaryBorderColor": "#1e3a5f",
+    "lineColor": "#888888",
+    "edgeLabelBackground": "#ffffff"
+  }
+}}%%
+flowchart TD
+    A[("Camera<br/>front, 480p, adaptive 10–30 fps")]
+    A --> B{"Gate 0 — BlazeFace<br/>face detection<br/>0.22 MB"}
+
+    B -- "no face" --> X1[("DROP FRAME<br/>save battery")]
+    B -- "face found" --> C{"Gate 1 — FaceMesh + heuristics<br/>EAR / MAR / Yaw / Laplacian<br/>1.18 MB"}
+
+    C -- "challenge not met" --> X2[("DROP FRAME<br/>no NN inference")]
+    C -- "challenge passed<br/>(blink • smile • turn)" --> D{"Gate 2 — ShuffleNetV2 0.5×<br/>passive liveness<br/>1.35 MB"}
+
+    D -- "spoof detected<br/>(print / screen)" --> REJ1[("REJECT<br/>spoof attempt")]
+    D -- "live" --> E{"Gate 3a — MobileFaceNet<br/>backbone (frozen)<br/>13.00 MB"}
+
+    E --> F{"Gate 3b — Adapter<br/>Indian-demographic tuned<br/>2.01 MB"}
+    F --> G{"L2-normalize<br/>cosine distance vs stored<br/>threshold 0.8616 (calibrated EER)"}
+
+    G -- "no match<br/>(distance ≥ 0.8616)" --> REJ2[("REJECT<br/>not recognized")]
+    G -- "match" --> H[("Write attendance<br/>SQLite + SQLCipher<br/>wall + monotonic timestamps")]
+
+    H --> I[("Sync queue<br/>NetInfo + FastAPI POST<br/>purge on 200 OK")]
+
+    classDef gate fill:#1e3a5f,stroke:#1e3a5f,stroke-width:2px,color:#ffffff
+    classDef drop fill:#f4f4f4,stroke:#999,stroke-dasharray:5 3,color:#666
+    classDef reject fill:#a83236,stroke:#a83236,color:#ffffff
+    classDef terminal fill:#3a7a3a,stroke:#3a7a3a,color:#ffffff
+    classDef camera fill:#fdba74,stroke:#f59e0b,color:#000000
+
+    class B,C,D,E,F,G gate
+    class X1,X2 drop
+    class REJ1,REJ2 reject
+    class H,I terminal
+    class A camera
+
+%% ── Architectural notes (not rendered) ──
+%% Gates 2 + 3 only fire on the ONE frame that passes Gate 1.
+%% That's the cascade saving — neural nets don't run per frame.
+%% Total bundle: 17.79 MB (cap 20 MB).
+%% Per shared_contracts/thresholds.json: match_threshold_status = "calibrated"
+%% Calibrated from adapter_04c: AUC 0.9499, EER 0.1101 on 5000+5000 Bollywood val pairs.

@@ -249,7 +249,7 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
           style={StyleSheet.absoluteFill}
           device={device}
           isActive={enrollState === 'capturing'}
-          pixelFormat="rgba"
+          pixelFormat="rgb"
           frameProcessor={enrollState === 'capturing' ? frameProcessor : undefined}
           photo={false}
           video={false}
