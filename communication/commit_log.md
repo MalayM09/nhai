@@ -42,7 +42,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-02 · 609fa9b · mobile(consolidate): port Laplacian variance into heuristics/math.ts; remove dead utils/gateHeuristics.ts (Sahil already migrated ScanScreen.tsx to use the canonical heuristics/ + liveness/ modules)
 - 2026-06-02 · 22f9249 · mobile(phase2 math): FaceMesh output unpacker + composed-embedding helper + landmark subset extractors; no changes to ScanScreen.tsx; clear wiring note for Sahil to apply ~15 LOC swap
 - 2026-06-02 · a0d65a3 · docs(phase4): pitch deck + tech doc outlines, Jun 3 priorities brain-dump; ran tsc --noEmit and flagged 4 TS errors in Sahil's screen files for morning sync
-- 2026-06-02 · _pending_ · fix(mobile): pixelFormat "rgba" -> "rgb" (4 -> 2 TS errors); architecture diagram (mermaid src + rendered PNG); full pitch slide content paste-ready
+- 2026-06-02 · d404521 · fix(mobile): pixelFormat "rgba" -> "rgb" (4 -> 2 TS errors); architecture diagram (mermaid src + rendered PNG); full pitch slide content paste-ready
 
 ## Teammate (Mobile)
 
