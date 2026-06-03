@@ -45,6 +45,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-02 · d404521 · fix(mobile): pixelFormat "rgba" -> "rgb" (4 -> 2 TS errors); architecture diagram (mermaid src + rendered PNG); full pitch slide content paste-ready
 - 2026-06-03 · 55f7683 · mobile(milestone1 prep): heuristics smoke test suite (25 passing); eslint --fix (161->3); dedup jest config; device test checklist
 - 2026-06-03 · 760d94b · fix(.gitignore): inline-comment-bug — kaggle_downloads/ wasn't being ignored because "kaggle_downloads/ # ..." is not a valid gitignore comment; untrack the 12 large files (~70 MB) that slipped through
+- 2026-06-03 · _pending_ · backend(mock): FastAPI mock sync backend — POST /attendance, POST /enrollment, GET /embeddings/region/{id}, debug endpoints, JSON persistence. Tested all 6 endpoints, embedding dim validation (512), ready for Sahil to wire sync queue against it
 
 ## Teammate (Mobile)
 

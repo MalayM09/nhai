@@ -127,6 +127,11 @@ tmp/
 # which is why this rule has its comment on the line above.
 kaggle_downloads/
 
+# Mock backend runtime state — auto-created, not committed
+mock_backend/state.json
+mock_backend/.venv/
+mock_backend/__pycache__/
+
 # =========================
 # Do NOT ignore committed dummies
 # =========================
