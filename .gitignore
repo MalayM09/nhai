@@ -122,7 +122,10 @@ GoogleService-Info.plist
 logs/
 tmp/
 .cache/
-kaggle_downloads/    # staging area for Kaggle notebook artifacts before they're sorted into the repo
+# Staging area for Kaggle notebook artifacts before they're sorted into the repo.
+# Inline comments are not valid in .gitignore (a # only starts a comment at line beginning),
+# which is why this rule has its comment on the line above.
+kaggle_downloads/
 
 # =========================
 # Do NOT ignore committed dummies
