@@ -16,7 +16,7 @@ import {
   NOSE_TIP_INDEX,
   RIGHT_EYE_OUTER_INDEX,
   LEFT_EYE_OUTER_INDEX,
-} from "./landmarks";
+} from './landmarks';
 
 // ────────── distance helpers ──────────
 
@@ -55,10 +55,10 @@ function earForEye(points: Point2D[]): number {
  * Returns NaN if landmarks are degenerate (caller should reject the frame).
  */
 export function computeEAR(landmarks: Point3D[]): number {
-  const rightEye = RIGHT_EYE_EAR_INDICES.map((i) => landmarks[i]);
-  const leftEye  = LEFT_EYE_EAR_INDICES.map((i) => landmarks[i]);
+  const rightEye = RIGHT_EYE_EAR_INDICES.map(i => landmarks[i]);
+  const leftEye = LEFT_EYE_EAR_INDICES.map(i => landmarks[i]);
   const earRight = earForEye(rightEye);
-  const earLeft  = earForEye(leftEye);
+  const earLeft = earForEye(leftEye);
   return (earRight + earLeft) / 2;
 }
 
@@ -75,7 +75,7 @@ export function computeEAR(landmarks: Point3D[]): number {
  * Threshold (per contract): MAR > 0.50 = smile / open mouth.
  */
 export function computeMAR(landmarks: Point3D[]): number {
-  const pts = MOUTH_MAR_INDICES.map((i) => landmarks[i]);
+  const pts = MOUTH_MAR_INDICES.map(i => landmarks[i]);
   const [p1, p2, p3, p4, p5, p6] = pts;
   const vertical = dist2D(p2, p6) + dist2D(p3, p5);
   const horizontal = dist2D(p1, p4);
@@ -99,10 +99,10 @@ export function computeMAR(landmarks: Point3D[]): number {
 export function computeYawDegrees(landmarks: Point3D[]): number {
   const nose = landmarks[NOSE_TIP_INDEX];
   const rightEye = landmarks[RIGHT_EYE_OUTER_INDEX]; // camera-left side
-  const leftEye  = landmarks[LEFT_EYE_OUTER_INDEX];  // camera-right side
+  const leftEye = landmarks[LEFT_EYE_OUTER_INDEX]; // camera-right side
 
   const dRight = dist2D(nose, rightEye);
-  const dLeft  = dist2D(nose, leftEye);
+  const dLeft = dist2D(nose, leftEye);
 
   // Ratio: 1.0 = facing camera, > 1 = turned subject-left, < 1 = turned subject-right
   const ratio = dLeft / (dRight + 1e-6);
@@ -167,7 +167,9 @@ export function computeLaplacianVariance(
       count += 1;
     }
   }
-  if (count === 0) return 0;
+  if (count === 0) {
+    return 0;
+  }
   const mean = sum / count;
   return sumSq / count - mean * mean;
 }

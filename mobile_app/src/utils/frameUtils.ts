@@ -25,16 +25,16 @@ export function resizeRgbaToModelInput(
     for (let x = 0; x < dstW; x++) {
       const srcX = Math.min(Math.floor(x * xScale), srcW - 1);
       const srcIdx = (srcY * srcW + srcX) * 4; // RGBA — 4 bytes/pixel
-      const dstIdx = (y * dstW + x) * 3;       // RGB  — 3 floats/pixel
+      const dstIdx = (y * dstW + x) * 3; // RGB  — 3 floats/pixel
       const r = src[srcIdx];
       const g = src[srcIdx + 1];
       const b = src[srcIdx + 2];
       if (norm === 'minus1_to_1') {
-        out[dstIdx]     = (r - 127.5) / 127.5;
+        out[dstIdx] = (r - 127.5) / 127.5;
         out[dstIdx + 1] = (g - 127.5) / 127.5;
         out[dstIdx + 2] = (b - 127.5) / 127.5;
       } else {
-        out[dstIdx]     = r / 255;
+        out[dstIdx] = r / 255;
         out[dstIdx + 1] = g / 255;
         out[dstIdx + 2] = b / 255;
       }

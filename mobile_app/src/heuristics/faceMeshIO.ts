@@ -17,7 +17,7 @@
  * The function is pure and synchronous — safe to call from a worklet.
  */
 
-import { reshapeFaceMeshOutput, type Point3D } from "./landmarks";
+import {reshapeFaceMeshOutput, type Point3D} from './landmarks';
 
 export interface FaceMeshOutput {
   /** 468 landmarks, ready to feed into `computeEAR`, `computeMAR`, etc. */
@@ -58,10 +58,10 @@ export function unpackFaceMeshOutput(
   }
 
   if (!landmarksFlat) {
-    throw new Error("FaceMesh: no output of length 1404 (landmarks) found");
+    throw new Error('FaceMesh: no output of length 1404 (landmarks) found');
   }
   if (!presenceTensor) {
-    throw new Error("FaceMesh: no output of length 1 (presence) found");
+    throw new Error('FaceMesh: no output of length 1 (presence) found');
   }
 
   const landmarks = reshapeFaceMeshOutput(
@@ -72,5 +72,5 @@ export function unpackFaceMeshOutput(
   const presenceLogit = presenceTensor[0];
   const faceLikelihood = 1 / (1 + Math.exp(-presenceLogit));
 
-  return { landmarks, presenceLogit, faceLikelihood };
+  return {landmarks, presenceLogit, faceLikelihood};
 }

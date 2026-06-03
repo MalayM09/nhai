@@ -51,9 +51,7 @@ export default function HomeScreen({navigate}: Props): React.JSX.Element {
           activeOpacity={0.85}
           onPress={() => navigate('scan')}>
           <Text style={styles.primaryBtnText}>Scan Attendance</Text>
-          <Text style={styles.primaryBtnSub}>
-            Verify and log a worker
-          </Text>
+          <Text style={styles.primaryBtnSub}>Verify and log a worker</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

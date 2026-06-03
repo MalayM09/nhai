@@ -41,8 +41,8 @@ import {
   computeMAR,
   computeYawDegrees,
   faceIsPresent,
-} from "../heuristics/math";
-import type { Point3D } from "../heuristics/landmarks";
+} from '../heuristics/math';
+import type {Point3D} from '../heuristics/landmarks';
 
 // Mirrors `shared_contracts/thresholds.json` heuristics block. The mobile loader
 // should read that file at build time; defaults here are the contract values
@@ -66,13 +66,9 @@ export const DEFAULT_THRESHOLDS: GateThresholds = {
   facePresenceMin: 0.5,
 };
 
-export type Challenge = "BLINK" | "SMILE" | "TURN_LEFT" | "TURN_RIGHT";
+export type Challenge = 'BLINK' | 'SMILE' | 'TURN_LEFT' | 'TURN_RIGHT';
 
-export type GateState =
-  | "IDLE"
-  | "CHALLENGED"
-  | "GATE_1_PASSED"
-  | "FAILED";
+export type GateState = 'IDLE' | 'CHALLENGED' | 'GATE_1_PASSED' | 'FAILED';
 
 export type FrameResult = {
   state: GateState;
@@ -86,10 +82,10 @@ export type FrameResult = {
 };
 
 const PROMPT_TEXTS: Record<Challenge, string> = {
-  BLINK: "Blink your eyes",
-  SMILE: "Smile",
-  TURN_LEFT: "Turn your head to your left",
-  TURN_RIGHT: "Turn your head to your right",
+  BLINK: 'Blink your eyes',
+  SMILE: 'Smile',
+  TURN_LEFT: 'Turn your head to your left',
+  TURN_RIGHT: 'Turn your head to your right',
 };
 
 // Pseudo-random challenge picker. Deliberately not crypto-grade — randomness only
@@ -100,7 +96,7 @@ function pickChallenge(allowed: Challenge[]): Challenge {
 }
 
 export class LivenessGate {
-  private state: GateState = "IDLE";
+  private state: GateState = 'IDLE';
   private currentChallenge: Challenge | null = null;
   private challengeStartedAt: number | null = null;
 
@@ -114,7 +110,12 @@ export class LivenessGate {
   private observedYawRight = false;
 
   // Allowed challenges (sunglasses fallback can disable BLINK)
-  private allowedChallenges: Challenge[] = ["BLINK", "SMILE", "TURN_LEFT", "TURN_RIGHT"];
+  private allowedChallenges: Challenge[] = [
+    'BLINK',
+    'SMILE',
+    'TURN_LEFT',
+    'TURN_RIGHT',
+  ];
 
   constructor(private thresholds: GateThresholds = DEFAULT_THRESHOLDS) {}
 
@@ -124,8 +125,8 @@ export class LivenessGate {
    * gate just respects the constraint.
    */
   public excludeBlinkChallenge(): void {
-    this.allowedChallenges = this.allowedChallenges.filter((c) => c !== "BLINK");
-    if (this.currentChallenge === "BLINK") {
+    this.allowedChallenges = this.allowedChallenges.filter(c => c !== 'BLINK');
+    if (this.currentChallenge === 'BLINK') {
       this.currentChallenge = pickChallenge(this.allowedChallenges);
       this.challengeStartedAt = Date.now();
     }
@@ -136,7 +137,7 @@ export class LivenessGate {
    * back to the auth screen.
    */
   public reset(): void {
-    this.state = "IDLE";
+    this.state = 'IDLE';
     this.currentChallenge = null;
     this.challengeStartedAt = null;
     this.earLowStreak = 0;
@@ -152,14 +153,17 @@ export class LivenessGate {
    * @param landmarks       FaceMesh's 468 landmarks (after squeezing unit dims).
    * @param presenceLogit   FaceMesh's presence sigmoid logit (second output).
    */
-  public onFrame(landmarks: Point3D[] | null, presenceLogit: number | null): FrameResult {
+  public onFrame(
+    landmarks: Point3D[] | null,
+    presenceLogit: number | null,
+  ): FrameResult {
     // No face → reset to IDLE
     if (
       landmarks === null ||
       presenceLogit === null ||
       !faceIsPresent(presenceLogit, this.thresholds.facePresenceMin)
     ) {
-      if (this.state !== "GATE_1_PASSED") {
+      if (this.state !== 'GATE_1_PASSED') {
         this.reset();
       }
       return this.snapshot(null, null, null);
@@ -171,14 +175,14 @@ export class LivenessGate {
     const yaw = computeYawDegrees(landmarks);
 
     switch (this.state) {
-      case "IDLE":
+      case 'IDLE':
         // Face just appeared → pick a challenge and prompt the user
         this.currentChallenge = pickChallenge(this.allowedChallenges);
         this.challengeStartedAt = Date.now();
-        this.state = "CHALLENGED";
+        this.state = 'CHALLENGED';
         break;
 
-      case "CHALLENGED": {
+      case 'CHALLENGED': {
         // Update per-condition observations
         if (ear < this.thresholds.earBlinkMax) {
           this.earLowStreak += 1;
@@ -202,20 +206,20 @@ export class LivenessGate {
         // Did the user complete the assigned challenge?
         const completed = this.challengeCompleted();
         if (completed) {
-          this.state = "GATE_1_PASSED";
+          this.state = 'GATE_1_PASSED';
           break;
         }
 
         // Timeout?
         const elapsed = Date.now() - (this.challengeStartedAt ?? 0);
         if (elapsed > this.thresholds.challengeTimeoutMs) {
-          this.state = "FAILED";
+          this.state = 'FAILED';
         }
         break;
       }
 
-      case "GATE_1_PASSED":
-      case "FAILED":
+      case 'GATE_1_PASSED':
+      case 'FAILED':
         // Terminal states — caller drives next step
         break;
     }
@@ -225,20 +229,31 @@ export class LivenessGate {
 
   private challengeCompleted(): boolean {
     switch (this.currentChallenge) {
-      case "BLINK":      return this.observedBlink;
-      case "SMILE":      return this.observedSmile;
-      case "TURN_LEFT":  return this.observedYawLeft;
-      case "TURN_RIGHT": return this.observedYawRight;
-      default:           return false;
+      case 'BLINK':
+        return this.observedBlink;
+      case 'SMILE':
+        return this.observedSmile;
+      case 'TURN_LEFT':
+        return this.observedYawLeft;
+      case 'TURN_RIGHT':
+        return this.observedYawRight;
+      default:
+        return false;
     }
   }
 
-  private snapshot(ear: number | null, mar: number | null, yaw: number | null): FrameResult {
+  private snapshot(
+    ear: number | null,
+    mar: number | null,
+    yaw: number | null,
+  ): FrameResult {
     return {
       state: this.state,
-      prompt: this.currentChallenge ? PROMPT_TEXTS[this.currentChallenge] : null,
+      prompt: this.currentChallenge
+        ? PROMPT_TEXTS[this.currentChallenge]
+        : null,
       currentChallenge: this.currentChallenge,
-      metrics: { ear, mar, yawDegrees: yaw },
+      metrics: {ear, mar, yawDegrees: yaw},
     };
   }
 }

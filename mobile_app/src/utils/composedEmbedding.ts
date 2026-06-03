@@ -20,7 +20,7 @@
  *   const matched  = distance < MATCH_THRESHOLD_VALUE;   // 0.8616 (calibrated)
  */
 
-import { l2Normalize } from "./embeddingUtils";
+import {l2Normalize} from './embeddingUtils';
 
 /**
  * Minimal structural interface — anything with a synchronous `runSync` method

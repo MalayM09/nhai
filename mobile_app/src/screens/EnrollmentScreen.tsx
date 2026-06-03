@@ -59,7 +59,9 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
   );
 
   useEffect(() => {
-    if (!hasPermission) requestPermission();
+    if (!hasPermission) {
+      requestPermission();
+    }
   }, [hasPermission, requestPermission]);
 
   // ---------------------------------------------------------------------------
@@ -68,7 +70,11 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
 
   const triggerFlash = useCallback(() => {
     flashOpacity.setValue(1);
-    Animated.timing(flashOpacity, {toValue: 0, duration: 350, useNativeDriver: true}).start();
+    Animated.timing(flashOpacity, {
+      toValue: 0,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
   }, [flashOpacity]);
 
   const onFrameCaptured = useCallback(
@@ -87,7 +93,14 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
 
       try {
         // MobileFaceNet backbone: [1,112,112,3] float32 [-1,1]
-        const input = resizeRgbaToModelInput(buf, w, h, 112, 112, 'minus1_to_1');
+        const input = resizeRgbaToModelInput(
+          buf,
+          w,
+          h,
+          112,
+          112,
+          'minus1_to_1',
+        );
         const backboneOut = mobilefacenet.model.runSync([input]);
         const rawEmb = new Float32Array(backboneOut[0] as Float32Array);
 
@@ -112,7 +125,9 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
   const frameProcessor = useFrameProcessor(
     frame => {
       'worklet';
-      if (!captureRequested.value) return;
+      if (!captureRequested.value) {
+        return;
+      }
       captureRequested.value = false;
       const buf = frame.toArrayBuffer();
       runOnJS(onFrameCaptured)(buf, frame.width, frame.height);
@@ -132,9 +147,16 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
       setErrorMsg('Model still loading, wait a moment.');
       return;
     }
-    if (captures.length >= ENROLLMENT_SHOTS_MIN) return;
+    if (captures.length >= ENROLLMENT_SHOTS_MIN) {
+      return;
+    }
     captureRequested.value = true; // worklet picks up on next frame
-  }, [mobilefacenet.state, mobilefacenetAdapter.state, captures.length, captureRequested]);
+  }, [
+    mobilefacenet.state,
+    mobilefacenetAdapter.state,
+    captures.length,
+    captureRequested,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Save handler
@@ -176,7 +198,9 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>Camera permission required.</Text>
-        <TouchableOpacity style={styles.linkBtn} onPress={() => Linking.openSettings()}>
+        <TouchableOpacity
+          style={styles.linkBtn}
+          onPress={() => Linking.openSettings()}>
           <Text style={styles.linkBtnText}>Open Settings</Text>
         </TouchableOpacity>
       </View>
@@ -220,7 +244,8 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
   const shotsDone = captures.length;
   const allCaptured = shotsDone >= ENROLLMENT_SHOTS_MIN;
   const modelsLoading =
-    mobilefacenet.state === 'loading' || mobilefacenetAdapter.state === 'loading';
+    mobilefacenet.state === 'loading' ||
+    mobilefacenetAdapter.state === 'loading';
 
   // ---------------------------------------------------------------------------
   // Capture screen
@@ -250,7 +275,9 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
           device={device}
           isActive={enrollState === 'capturing'}
           pixelFormat="rgb"
-          frameProcessor={enrollState === 'capturing' ? frameProcessor : undefined}
+          frameProcessor={
+            enrollState === 'capturing' ? frameProcessor : undefined
+          }
           photo={false}
           video={false}
           audio={false}
@@ -259,7 +286,10 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
         <View style={styles.ovalGuide} />
 
         <Animated.View
-          style={[StyleSheet.absoluteFillObject, {backgroundColor: '#ffffff', opacity: flashOpacity}]}
+          style={[
+            StyleSheet.absoluteFillObject,
+            {backgroundColor: '#ffffff', opacity: flashOpacity},
+          ]}
           pointerEvents="none"
         />
 
@@ -272,24 +302,37 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
 
       <View style={styles.dotsRow}>
         {Array.from({length: ENROLLMENT_SHOTS_MIN}).map((_, i) => (
-          <View key={i} style={[styles.dot, i < shotsDone && styles.dotFilled]} />
+          <View
+            key={i}
+            style={[styles.dot, i < shotsDone && styles.dotFilled]}
+          />
         ))}
-        <Text style={styles.dotsLabel}>{shotsDone}/{ENROLLMENT_SHOTS_MIN} captures</Text>
+        <Text style={styles.dotsLabel}>
+          {shotsDone}/{ENROLLMENT_SHOTS_MIN} captures
+        </Text>
       </View>
 
       {errorMsg ? <Text style={styles.errorInline}>{errorMsg}</Text> : null}
 
       {!allCaptured ? (
         <TouchableOpacity
-          style={[styles.primaryBtn, (modelsLoading || enrollState === 'saving') && styles.btnDisabled]}
+          style={[
+            styles.primaryBtn,
+            (modelsLoading || enrollState === 'saving') && styles.btnDisabled,
+          ]}
           activeOpacity={0.85}
           onPress={handleCapture}
           disabled={modelsLoading || enrollState === 'saving'}>
-          <Text style={styles.primaryBtnText}>Capture ({shotsDone + 1}/{ENROLLMENT_SHOTS_MIN})</Text>
+          <Text style={styles.primaryBtnText}>
+            Capture ({shotsDone + 1}/{ENROLLMENT_SHOTS_MIN})
+          </Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
-          style={[styles.saveBtn, enrollState === 'saving' && styles.btnDisabled]}
+          style={[
+            styles.saveBtn,
+            enrollState === 'saving' && styles.btnDisabled,
+          ]}
           activeOpacity={0.85}
           onPress={handleSave}
           disabled={enrollState === 'saving'}>
@@ -303,11 +346,28 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#0d1117', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 32},
-  center: {flex: 1, backgroundColor: '#0d1117', justifyContent: 'center', alignItems: 'center', gap: 16},
+  container: {
+    flex: 1,
+    backgroundColor: '#0d1117',
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 32,
+  },
+  center: {
+    flex: 1,
+    backgroundColor: '#0d1117',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
   backBtn: {marginBottom: 12},
   backBtnText: {color: '#6b7280', fontSize: 15},
-  screenTitle: {color: '#ffffff', fontSize: 22, fontWeight: '700', marginBottom: 20},
+  screenTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 20,
+  },
   nameInput: {
     backgroundColor: '#161b22',
     borderRadius: 10,
@@ -348,21 +408,75 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   loadingBadgeText: {color: '#aaa', fontSize: 12},
-  dotsRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingHorizontal: 4},
-  dot: {width: 10, height: 10, borderRadius: 5, backgroundColor: '#21262d', borderWidth: 1, borderColor: '#374151'},
+  dotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#21262d',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
   dotFilled: {backgroundColor: '#2e7d32', borderColor: '#2e7d32'},
   dotsLabel: {color: '#6b7280', fontSize: 13, marginLeft: 4},
-  errorInline: {color: '#ef5350', fontSize: 13, marginBottom: 8, paddingHorizontal: 4},
+  errorInline: {
+    color: '#ef5350',
+    fontSize: 13,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
   errorText: {color: '#ef5350', fontSize: 15},
-  linkBtn: {backgroundColor: '#1a237e', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8},
+  linkBtn: {
+    backgroundColor: '#1a237e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
   linkBtnText: {color: '#fff', fontWeight: '600', fontSize: 15},
-  primaryBtn: {backgroundColor: '#1a237e', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4},
-  saveBtn: {backgroundColor: '#1b5e20', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4},
+  primaryBtn: {
+    backgroundColor: '#1a237e',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  saveBtn: {
+    backgroundColor: '#1b5e20',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 4,
+  },
   primaryBtnText: {color: '#ffffff', fontSize: 16, fontWeight: '700'},
   btnDisabled: {opacity: 0.45},
-  successBox: {flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, paddingHorizontal: 16},
-  successIcon: {width: 72, height: 72, borderRadius: 36, backgroundColor: '#1b5e20', justifyContent: 'center', alignItems: 'center', marginBottom: 8},
+  successBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    paddingHorizontal: 16,
+  },
+  successIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#1b5e20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   successTick: {color: '#fff', fontSize: 32, fontWeight: '700'},
   successTitle: {color: '#ffffff', fontSize: 22, fontWeight: '700'},
-  successSub: {color: '#6b7280', fontSize: 15, textAlign: 'center', lineHeight: 22},
+  successSub: {
+    color: '#6b7280',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 });

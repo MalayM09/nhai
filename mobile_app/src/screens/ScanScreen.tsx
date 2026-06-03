@@ -37,7 +37,11 @@ import {
   MATCH_THRESHOLD_VALUE,
   LIVENESS_SPOOF_REJECT_PROB,
 } from '../constants/thresholds';
-import {LivenessGate, DEFAULT_THRESHOLDS, type Challenge} from '../liveness/gate';
+import {
+  LivenessGate,
+  DEFAULT_THRESHOLDS,
+  type Challenge,
+} from '../liveness/gate';
 import {reshapeFaceMeshOutput} from '../heuristics/landmarks';
 import {resizeRgbaToModelInput} from '../utils/frameUtils';
 import {findBestMatch, l2Normalize} from '../utils/embeddingUtils';
@@ -48,10 +52,10 @@ import {loadAllUsers, UserRecord, logAttendance} from '../db/database';
 // ---------------------------------------------------------------------------
 
 type ScanState =
-  | 'ready'         // idle — "Start Scan" button shown
-  | 'positioning'   // frame processor active — waiting for face in oval
-  | 'challenge'     // gate CHALLENGED — show prompt, user performing action
-  | 'detecting'     // gate passed — running identity models
+  | 'ready' // idle — "Start Scan" button shown
+  | 'positioning' // frame processor active — waiting for face in oval
+  | 'challenge' // gate CHALLENGED — show prompt, user performing action
+  | 'detecting' // gate passed — running identity models
   | 'verified'
   | 'failed'
   | 'no_workers';
@@ -72,7 +76,9 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
 
   const [scanState, setScanState] = useState<ScanState>('ready');
   const [statusMessage, setStatusMessage] = useState('Ready to Scan');
-  const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
+  const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(
+    null,
+  );
   const [verifiedName, setVerifiedName] = useState('');
 
   // Keep a ref so worklet callbacks don't read stale state
@@ -121,7 +127,9 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!hasPermission) requestPermission();
+    if (!hasPermission) {
+      requestPermission();
+    }
   }, [hasPermission, requestPermission]);
 
   useEffect(() => {
@@ -152,7 +160,14 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
 
       try {
         // Gate 2: ShuffleNet liveness — [1,112,112,3] float32 [0,1]
-        const livenessInput = resizeRgbaToModelInput(buf, w, h, 112, 112, 'zero_to_1');
+        const livenessInput = resizeRgbaToModelInput(
+          buf,
+          w,
+          h,
+          112,
+          112,
+          'zero_to_1',
+        );
         const livenessOut = shufflenet.model!.runSync([livenessInput]);
         const spoofProb = (livenessOut[0] as Float32Array)[1] ?? 0;
 
@@ -164,7 +179,14 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
         }
 
         // Gate 3: MobileFaceNet backbone — [1,112,112,3] float32 [-1,1]
-        const embeddingInput = resizeRgbaToModelInput(buf, w, h, 112, 112, 'minus1_to_1');
+        const embeddingInput = resizeRgbaToModelInput(
+          buf,
+          w,
+          h,
+          112,
+          112,
+          'minus1_to_1',
+        );
         const backboneOut = mobilefacenet.model!.runSync([embeddingInput]);
         const rawEmb = new Float32Array(backboneOut[0] as Float32Array);
 
@@ -175,7 +197,10 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
 
         const match = findBestMatch(
           normalized,
-          storedUsers.current.map(u => ({userId: u.id, embedding: u.embedding})),
+          storedUsers.current.map(u => ({
+            userId: u.id,
+            embedding: u.embedding,
+          })),
           MATCH_THRESHOLD_VALUE,
         );
 
@@ -212,7 +237,10 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
 
   const onFrameUpdate = useCallback(
     (rawLandmarks: Float32Array | null, presenceLogit: number | null) => {
-      if (scanStateRef.current !== 'positioning' && scanStateRef.current !== 'challenge') {
+      if (
+        scanStateRef.current !== 'positioning' &&
+        scanStateRef.current !== 'challenge'
+      ) {
         return;
       }
 
@@ -288,15 +316,21 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
         return;
       }
 
-      if (!gateActive.value) return;
+      if (!gateActive.value) {
+        return;
+      }
 
       // Throttle: 10 fps idle (every 3rd frame at 30 fps camera),
       //           30 fps during active challenge (every frame)
       frameCount.value += 1;
       const interval = isChallengeSV.value ? 1 : 3;
-      if (frameCount.value % interval !== 0) return;
+      if (frameCount.value % interval !== 0) {
+        return;
+      }
 
-      if (!blazeface.model || !facemesh.model) return;
+      if (!blazeface.model || !facemesh.model) {
+        return;
+      }
 
       // --- BlazeFace: detect face presence ---
       const bfOut = blazeface.model.runSync([frame]);
@@ -359,7 +393,9 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
       mobilefacenetAdapter.state === 'loaded';
 
     if (scanState !== 'ready' || !modelsReady) {
-      if (!modelsReady) Alert.alert('Loading', 'Models are still loading, please wait.');
+      if (!modelsReady) {
+        Alert.alert('Loading', 'Models are still loading, please wait.');
+      }
       return;
     }
 
@@ -404,7 +440,9 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>Camera permission required.</Text>
-        <TouchableOpacity style={styles.textBtn} onPress={() => Linking.openSettings()}>
+        <TouchableOpacity
+          style={styles.textBtn}
+          onPress={() => Linking.openSettings()}>
           <Text style={styles.textBtnLabel}>Open Settings</Text>
         </TouchableOpacity>
       </View>
@@ -441,8 +479,7 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
     mobilefacenet.state === 'loading' ||
     mobilefacenetAdapter.state === 'loading';
 
-  const cameraActive =
-    scanState !== 'verified' && scanState !== 'failed';
+  const cameraActive = scanState !== 'verified' && scanState !== 'failed';
 
   // ---------------------------------------------------------------------------
   // Render
@@ -460,7 +497,9 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
         isActive={cameraActive}
         pixelFormat="rgb"
         frameProcessor={
-          scanState === 'positioning' || scanState === 'challenge' || scanState === 'detecting'
+          scanState === 'positioning' ||
+          scanState === 'challenge' ||
+          scanState === 'detecting'
             ? frameProcessor
             : undefined
         }
@@ -499,7 +538,9 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
         )}
 
         {scanState === 'positioning' && (
-          <Text style={styles.hintText}>Move closer if the challenge doesn't appear</Text>
+          <Text style={styles.hintText}>
+            Move closer if the challenge doesn't appear
+          </Text>
         )}
 
         {scanState === 'verified' && verifiedName ? (
@@ -512,7 +553,11 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
 
         {(scanState === 'ready' || scanState === 'positioning') && (
           <TouchableOpacity
-            style={[styles.actionBtn, (modelsLoading || scanState === 'positioning') && styles.btnDisabled]}
+            style={[
+              styles.actionBtn,
+              (modelsLoading || scanState === 'positioning') &&
+                styles.btnDisabled,
+            ]}
             activeOpacity={0.85}
             onPress={startScan}
             disabled={modelsLoading || scanState === 'positioning'}>
@@ -523,17 +568,25 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
         )}
 
         {scanState === 'no_workers' && (
-          <Text style={styles.hintText}>Enroll workers from the home screen first.</Text>
+          <Text style={styles.hintText}>
+            Enroll workers from the home screen first.
+          </Text>
         )}
 
         {scanState === 'verified' && (
-          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.85} onPress={resetScan}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            activeOpacity={0.85}
+            onPress={resetScan}>
             <Text style={styles.actionBtnText}>Scan Another</Text>
           </TouchableOpacity>
         )}
 
         {scanState === 'challenge' && (
-          <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.85} onPress={resetScan}>
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            activeOpacity={0.85}
+            onPress={resetScan}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
         )}

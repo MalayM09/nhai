@@ -24,7 +24,9 @@ export function initDatabase(): void {
 }
 
 function getDb(): QuickSQLiteConnection {
-  if (!db) throw new Error('Database not initialised. Call initDatabase() first.');
+  if (!db) {
+    throw new Error('Database not initialised. Call initDatabase() first.');
+  }
   return db;
 }
 
@@ -99,8 +101,12 @@ export function upsertUser(user: UserRecord): void {
 
 /** Load all user records into memory for matrix matching. */
 export function loadAllUsers(): UserRecord[] {
-  const result = getDb().execute('SELECT id, name, embedding, enrollment_shots, enrollment_quality FROM users');
-  if (!result.rows) return [];
+  const result = getDb().execute(
+    'SELECT id, name, embedding, enrollment_shots, enrollment_quality FROM users',
+  );
+  if (!result.rows) {
+    return [];
+  }
 
   const users: UserRecord[] = [];
   for (let i = 0; i < result.rows.length; i++) {
@@ -143,7 +149,9 @@ export function getUnsyncedAttendance(): AttendanceRecord[] {
   const result = getDb().execute(
     'SELECT id, user_id, timestamp_wall, timestamp_monotonic FROM attendance WHERE synced = 0',
   );
-  if (!result.rows) return [];
+  if (!result.rows) {
+    return [];
+  }
 
   const records: AttendanceRecord[] = [];
   for (let i = 0; i < result.rows.length; i++) {
@@ -160,7 +168,9 @@ export function getUnsyncedAttendance(): AttendanceRecord[] {
 
 /** Mark an attendance record as synced (called after backend returns 200 OK). */
 export function markSynced(attendanceId: string): void {
-  getDb().execute('UPDATE attendance SET synced = 1 WHERE id = ?', [attendanceId]);
+  getDb().execute('UPDATE attendance SET synced = 1 WHERE id = ?', [
+    attendanceId,
+  ]);
 }
 
 /** Purge a synced record after backend confirms receipt (200 OK). */
@@ -180,7 +190,9 @@ export function getTodayAttendanceCount(): number {
     'SELECT COUNT(*) as cnt FROM attendance WHERE timestamp_wall >= ?',
     [startOfDay],
   );
-  if (!result.rows) return 0;
+  if (!result.rows) {
+    return 0;
+  }
   return (result.rows.item(0)?.cnt as number) ?? 0;
 }
 

@@ -17,7 +17,9 @@ export function l2Normalize(embedding: Float32Array): Float32Array {
     sumSq += embedding[i] * embedding[i];
   }
   const norm = Math.sqrt(sumSq);
-  if (norm < 1e-10) return embedding; // zero vector — return as-is
+  if (norm < 1e-10) {
+    return embedding;
+  } // zero vector — return as-is
   for (let i = 0; i < embedding.length; i++) {
     embedding[i] /= norm;
   }
