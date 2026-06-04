@@ -32,18 +32,28 @@ If `tsc` shows new errors, fix before moving on. If tests fail, **stop and ask M
 
 ---
 
-## Step 3 — Apply the Phase 2 wiring diff if not already applied (30 min)
+## Step 2.5 — Fix the pixelFormat / frameUtils stride bug (15 min)
 
-Open [communication/note_phase2_wiring.md](../communication/note_phase2_wiring.md) and check:
+**This is a real latent bug**, not a theoretical concern. See the 🚨 section at the top of [04_known_issues.md](04_known_issues.md) for the full diagnosis.
 
-- Does [mobile_app/src/screens/ScanScreen.tsx](../mobile_app/src/screens/ScanScreen.tsx) import `unpackFaceMeshOutput` from `../heuristics/faceMeshIO`?
-- Does it import `computeComposedEmbedding` from `../utils/composedEmbedding`?
-- Is the worklet calling `gateRef.current.onFrame(landmarks, presenceLogit)` with real landmarks?
+In one sentence: the camera was switched to `pixelFormat="rgb"` (3 bytes/pixel), but `frameUtils.resizeRgbaToModelInput` still reads with a 4-byte stride — so every preprocessed tensor is structured noise. The fix is the 1-character change `* 4` → `* 3` in [mobile_app/src/utils/frameUtils.ts](../mobile_app/src/utils/frameUtils.ts), plus renaming the function and updating the two call sites in `ScanScreen.tsx`.
 
-If **yes to all three** → skip to Step 4.
-If **any are no** → apply the diff exactly as the wiring note specifies. ~15 LOC swap.
+**DONE =** the stride is 3, the function name is `resizeRgbToModelInput`, both call sites updated, `npx tsc --noEmit` no worse than before.
 
-**DONE =** `tsc --noEmit` is still ≤ 2 errors, no new ones introduced.
+---
+
+## Step 3 — Phase 2 wiring (mostly already done — verify only) (10 min)
+
+Re-checked Jun 4: Sahil's `91cf8dc` already wired equivalents of the Phase 2 helpers, just via different names. Specifically [ScanScreen.tsx](../mobile_app/src/screens/ScanScreen.tsx) already:
+
+- Reshapes FaceMesh output via `reshapeFaceMeshOutput(rawLandmarks.slice(0, 1404))` at line ~250 — functionally same as `unpackFaceMeshOutput`, just without the `faceLikelihood` early-bail
+- Runs `gateRef.current.onFrame(landmarks, presenceLogit)` at line ~253 ✅
+- Composes backbone → adapter → `l2Normalize` manually at lines ~190–196 — functionally identical to `computeComposedEmbedding`
+- Calls `findBestMatch` with `MATCH_THRESHOLD_VALUE` (= 0.8616) ✅
+
+**Do not swap to Malay's helpers** — it would be a pure refactor with no behavioural change, and refactoring working code on demo day is the wrong instinct.
+
+**DONE =** `grep -n "reshapeFaceMeshOutput\|gateRef.current.onFrame\|findBestMatch" mobile_app/src/screens/ScanScreen.tsx` returns matches.
 
 ---
 

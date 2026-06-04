@@ -20,6 +20,8 @@
 
 Don't skim. Each file is short on purpose. The ordering matters — `02` won't make sense without `01`.
 
+**Before you do anything else: read the 🚨 KNOWN BUG section at the top of [04_known_issues.md](04_known_issues.md).** There's a pixelFormat / frameUtils stride mismatch latent in `main` that will silently break every preprocessed tensor. Fix that before touching anything else, or you'll waste hours chasing ghosts.
+
 ---
 
 ## Ownership recap (same as repo-root [CLAUDE.md](../CLAUDE.md))

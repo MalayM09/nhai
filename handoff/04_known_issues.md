@@ -4,6 +4,46 @@ Read this before debugging anything. Most of "weird behavior" on this project ha
 
 ---
 
+## 🚨 KNOWN BUG: pixelFormat / frameUtils stride mismatch
+
+**Read this before anything else.** This is latent in `main` as of `ed20a94` and **will silently make every preprocessed tensor garbage.** Symptom: app boots, camera shows live, gates never fire, "Positioning…" forever.
+
+**The clash:**
+
+- Commit `d404521` changed `pixelFormat="rgba"` → `"rgb"` in [mobile_app/src/screens/EnrollmentScreen.tsx:252](../mobile_app/src/screens/EnrollmentScreen.tsx#L252) and [mobile_app/src/screens/ScanScreen.tsx:461](../mobile_app/src/screens/ScanScreen.tsx#L461). The camera now outputs **3 bytes/pixel** (RGB).
+- Sahil's [mobile_app/src/utils/frameUtils.ts](../mobile_app/src/utils/frameUtils.ts) — written for `91cf8dc` — has `resizeRgbaToModelInput()` that reads `src[srcIdx + 0/1/2]` with a **4-byte stride** (`srcIdx = (srcY * srcW + srcX) * 4`). Function header explicitly says *"Camera must have pixelFormat='rgba' set so the buffer is row-major RGBA."*
+- Result: the helper reads R from byte 0, G from byte 1, B from byte 2 — **but advances 4 bytes per pixel through a 3-byte-per-pixel buffer.** Every pixel after the first reads from the wrong offset. Output tensor is structured noise. BlazeFace + FaceMesh + ShuffleNet + MobileFaceNet all see garbage.
+
+**Why TS doesn't catch it:** the function takes an `ArrayBuffer | Uint8Array`. Both buffer formats type-check. The stride is a runtime assumption baked into the math, not the types.
+
+**Fix (recommended — change frameUtils, not pixelFormat):**
+
+In [mobile_app/src/utils/frameUtils.ts](../mobile_app/src/utils/frameUtils.ts):
+
+```typescript
+// OLD (4-byte stride):
+const srcIdx = (srcY * srcW + srcX) * 4; // RGBA — 4 bytes/pixel
+
+// NEW (3-byte stride):
+const srcIdx = (srcY * srcW + srcX) * 3; // RGB — 3 bytes/pixel
+```
+
+Also rename the function `resizeRgbaToModelInput` → `resizeRgbToModelInput` and update the header comment + the two call sites in `ScanScreen.tsx` (~lines 163 and 182).
+
+**Why this direction, not the reverse:**
+
+Reverting `pixelFormat` back to `"rgba"` would re-introduce the original TS errors on `EnrollmentScreen.tsx:252` and `ScanScreen.tsx:461` — vision-camera 4.x dropped the `"rgba"` enum value. Keeping `"rgb"` matches the supported API; the helper just needs to read 3-byte stride.
+
+**Verify after the fix:**
+
+1. `npx tsc --noEmit` — no new errors
+2. Install on phone — Gate 0 (BlazeFace) should fire a face box on a real face; gates should advance through challenge → verify
+3. Sanity check: `adb logcat | grep -i "face\|gate"` — see real detection events, not just timeouts
+
+If gates still don't fire after this fix, the next likely culprit is `frame.toArrayBuffer()` returning a YUV buffer instead of RGB — vision-camera's pixel format setting may not actually convert internally. In that case, the conversion has to happen explicitly via a vision-camera frame processor plugin.
+
+---
+
 ## TypeScript errors
 
 Last known state (Jun 2 evening): 4 errors → 2 after the pixelFormat fix.
