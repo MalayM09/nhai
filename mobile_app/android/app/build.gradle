@@ -81,6 +81,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        ndk {
+            abiFilters "arm64-v8a"
+        }
     }
     signingConfigs {
         debug {
@@ -89,6 +92,11 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+    }
+    packagingOptions {
+        pickFirst '**/libreact_nativemodule_core.so'
+        pickFirst '**/libjsi.so'
+        pickFirst '**/libturbomodulejsijni.so'
     }
     buildTypes {
         debug {

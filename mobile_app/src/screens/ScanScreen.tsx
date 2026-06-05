@@ -31,7 +31,7 @@ import {
   useFrameProcessor,
 } from 'react-native-vision-camera';
 import {useTensorflowModel} from 'react-native-fast-tflite';
-import {runOnJS, useSharedValue} from 'react-native-reanimated';
+import {Worklets, useSharedValue} from 'react-native-worklets-core';
 
 import {
   MATCH_THRESHOLD_VALUE,
@@ -43,7 +43,7 @@ import {
   type Challenge,
 } from '../liveness/gate';
 import {reshapeFaceMeshOutput} from '../heuristics/landmarks';
-import {resizeRgbaToModelInput} from '../utils/frameUtils';
+import {resizeRgbToModelInput} from '../utils/frameUtils';
 import {findBestMatch, l2Normalize} from '../utils/embeddingUtils';
 import {loadAllUsers, UserRecord, logAttendance} from '../db/database';
 
@@ -145,65 +145,23 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
   // Identity model inference (runs on React thread after gate passes)
   // ---------------------------------------------------------------------------
 
-  const runDetectionOnFrame = useCallback(
-    (buf: ArrayBuffer, w: number, h: number) => {
-      if (
-        shufflenet.state !== 'loaded' ||
-        mobilefacenet.state !== 'loaded' ||
-        mobilefacenetAdapter.state !== 'loaded'
-      ) {
+  // Called from worklet with the normalized embedding or a spoof flag
+  const onDetectionResult = useCallback(
+    (spoofFailed: boolean, embedding: number[] | null) => {
+      if (spoofFailed) {
         setScanStateBoth('failed');
-        setStatusMessage('Models not ready. Try again.');
+        setStatusMessage('Liveness check failed. Try again.');
         scheduleReset();
         return;
       }
-
+      if (!embedding) return;
       try {
-        // Gate 2: ShuffleNet liveness — [1,112,112,3] float32 [0,1]
-        const livenessInput = resizeRgbaToModelInput(
-          buf,
-          w,
-          h,
-          112,
-          112,
-          'zero_to_1',
-        );
-        const livenessOut = shufflenet.model!.runSync([livenessInput]);
-        const spoofProb = (livenessOut[0] as Float32Array)[1] ?? 0;
-
-        if (spoofProb > LIVENESS_SPOOF_REJECT_PROB) {
-          setScanStateBoth('failed');
-          setStatusMessage('Liveness check failed. Try again.');
-          scheduleReset();
-          return;
-        }
-
-        // Gate 3: MobileFaceNet backbone — [1,112,112,3] float32 [-1,1]
-        const embeddingInput = resizeRgbaToModelInput(
-          buf,
-          w,
-          h,
-          112,
-          112,
-          'minus1_to_1',
-        );
-        const backboneOut = mobilefacenet.model!.runSync([embeddingInput]);
-        const rawEmb = new Float32Array(backboneOut[0] as Float32Array);
-
-        // Adapter: [1,512] → [1,512]
-        const adapterOut = mobilefacenetAdapter.model!.runSync([rawEmb]);
-        const adapted = new Float32Array(adapterOut[0] as Float32Array);
-        const normalized = l2Normalize(adapted);
-
+        const normalized = new Float32Array(embedding);
         const match = findBestMatch(
           normalized,
-          storedUsers.current.map(u => ({
-            userId: u.id,
-            embedding: u.embedding,
-          })),
+          storedUsers.current.map(u => ({userId: u.id, embedding: u.embedding})),
           MATCH_THRESHOLD_VALUE,
         );
-
         if (match) {
           const user = storedUsers.current.find(u => u.id === match.userId);
           const displayName = user?.name ?? match.userId;
@@ -228,7 +186,7 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shufflenet, mobilefacenet, mobilefacenetAdapter],
+    [],
   );
 
   // ---------------------------------------------------------------------------
@@ -236,7 +194,8 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
   // ---------------------------------------------------------------------------
 
   const onFrameUpdate = useCallback(
-    (rawLandmarks: Float32Array | null, presenceLogit: number | null) => {
+    (rawLandmarksArr: number[] | null, presenceLogit: number | null) => {
+      const rawLandmarks = rawLandmarksArr ? new Float32Array(rawLandmarksArr) : null;
       if (
         scanStateRef.current !== 'positioning' &&
         scanStateRef.current !== 'challenge'
@@ -292,12 +251,14 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
     [gateActive, captureNextFrame, isChallengeSV, countdownAnim],
   );
 
-  // Called from worklet when captureNextFrame fires — carries raw RGBA pixels
-  const onEmbeddingCapture = useCallback(
-    (buf: ArrayBuffer, w: number, h: number) => {
-      runDetectionOnFrame(buf, w, h);
-    },
-    [runDetectionOnFrame],
+  // worklets-core JS-thread callbacks — safe to call from vision-camera worklet context
+  const jsFrameUpdate = useMemo(
+    () => Worklets.createRunOnJS(onFrameUpdate),
+    [onFrameUpdate],
+  );
+  const jsDetectionResult = useMemo(
+    () => Worklets.createRunOnJS(onDetectionResult),
+    [onDetectionResult],
   );
 
   // ---------------------------------------------------------------------------
@@ -308,11 +269,29 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
     frame => {
       'worklet';
 
-      // --- Capture path: gate passed, grab one frame for embedding ---
+      // --- Capture path: gate passed, run all inference in worklet ---
       if (captureNextFrame.value) {
         captureNextFrame.value = false;
+        if (!shufflenet.model || !mobilefacenet.model || !mobilefacenetAdapter.model) return;
+
         const buf = frame.toArrayBuffer();
-        runOnJS(onEmbeddingCapture)(buf, frame.width, frame.height);
+
+        // Gate 2: ShuffleNet liveness
+        const livenessInput = resizeRgbToModelInput(buf, frame.width, frame.height, 112, 112, 'zero_to_1');
+        const livenessOut = shufflenet.model.runSync([livenessInput]);
+        const spoofProb = (livenessOut[0] as Float32Array)[1] ?? 0;
+        if (spoofProb > LIVENESS_SPOOF_REJECT_PROB) {
+          jsDetectionResult(true, null);
+          return;
+        }
+
+        // Gate 3: MobileFaceNet + adapter
+        const embInput = resizeRgbToModelInput(buf, frame.width, frame.height, 112, 112, 'minus1_to_1');
+        const backboneOut = mobilefacenet.model.runSync([embInput]);
+        const rawEmb = new Float32Array(backboneOut[0] as Float32Array);
+        const adapterOut = mobilefacenetAdapter.model.runSync([rawEmb]);
+        const normalized = l2Normalize(new Float32Array(adapterOut[0] as Float32Array));
+        jsDetectionResult(false, Array.from(normalized));
         return;
       }
 
@@ -345,7 +324,7 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
       }
 
       if (!hasFace) {
-        runOnJS(onFrameUpdate)(null, null);
+        jsFrameUpdate(null, null);
         return;
       }
 
@@ -354,13 +333,16 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
       const rawLandmarks = fmOut[0] as Float32Array; // [1,1,1,1404]
       const presenceLogit = (fmOut[1] as Float32Array)[0]; // scalar
 
-      runOnJS(onFrameUpdate)(rawLandmarks, presenceLogit);
+      jsFrameUpdate(Array.from(rawLandmarks), presenceLogit);
     },
     [
       blazeface.model,
       facemesh.model,
-      onFrameUpdate,
-      onEmbeddingCapture,
+      shufflenet.model,
+      mobilefacenet.model,
+      mobilefacenetAdapter.model,
+      jsFrameUpdate,
+      jsDetectionResult,
       gateActive,
       captureNextFrame,
       isChallengeSV,

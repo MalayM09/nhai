@@ -6,7 +6,7 @@
  * → accumulates embeddings → Save computes L2-centroid and writes to SQLite.
  */
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Alert,
   Animated,
@@ -24,10 +24,10 @@ import {
   useFrameProcessor,
 } from 'react-native-vision-camera';
 import {useTensorflowModel} from 'react-native-fast-tflite';
-import {runOnJS, useSharedValue} from 'react-native-reanimated';
+import {Worklets, useSharedValue} from 'react-native-worklets-core';
 
 import {l2AverageEmbeddings, l2Normalize} from '../utils/embeddingUtils';
-import {resizeRgbaToModelInput} from '../utils/frameUtils';
+import {resizeRgbToModelInput} from '../utils/frameUtils';
 import {upsertUser} from '../db/database';
 import {ENROLLMENT_SHOTS_MIN} from '../constants/thresholds';
 
@@ -77,62 +77,44 @@ export default function EnrollmentScreen({goBack}: Props): React.JSX.Element {
     }).start();
   }, [flashOpacity]);
 
-  const onFrameCaptured = useCallback(
-    (buf: ArrayBuffer, w: number, h: number) => {
-      if (
-        mobilefacenet.state !== 'loaded' ||
-        !mobilefacenet.model ||
-        mobilefacenetAdapter.state !== 'loaded' ||
-        !mobilefacenetAdapter.model
-      ) {
-        setErrorMsg('Model still loading, wait a moment.');
-        return;
-      }
-
+  // Called from worklet with the normalized embedding as a plain number array
+  const onEmbeddingReady = useCallback(
+    (embedding: number[]) => {
       triggerFlash();
-
-      try {
-        // MobileFaceNet backbone: [1,112,112,3] float32 [-1,1]
-        const input = resizeRgbaToModelInput(
-          buf,
-          w,
-          h,
-          112,
-          112,
-          'minus1_to_1',
-        );
-        const backboneOut = mobilefacenet.model.runSync([input]);
-        const rawEmb = new Float32Array(backboneOut[0] as Float32Array);
-
-        // Adapter: [1,512] → [1,512]
-        const adapterOut = mobilefacenetAdapter.model.runSync([rawEmb]);
-        const adapted = new Float32Array(adapterOut[0] as Float32Array);
-        const normalized = l2Normalize(adapted);
-
-        setCaptures(prev => [...prev, normalized]);
-        setErrorMsg('');
-      } catch (e) {
-        setErrorMsg('Capture failed. Try again.');
-      }
+      setCaptures(prev => [...prev, new Float32Array(embedding)]);
+      setErrorMsg('');
     },
-    [mobilefacenet, mobilefacenetAdapter, triggerFlash],
+    [triggerFlash],
   );
 
   // ---------------------------------------------------------------------------
-  // Frame processor — idle until captureRequested fires
+  // Frame processor — all inference runs inside the worklet (no ArrayBuffer crossing)
   // ---------------------------------------------------------------------------
+
+  const jsEmbeddingReady = useMemo(
+    () => Worklets.createRunOnJS(onEmbeddingReady),
+    [onEmbeddingReady],
+  );
 
   const frameProcessor = useFrameProcessor(
     frame => {
       'worklet';
-      if (!captureRequested.value) {
-        return;
-      }
+      if (!captureRequested.value) return;
+      if (!mobilefacenet.model || !mobilefacenetAdapter.model) return;
       captureRequested.value = false;
+
       const buf = frame.toArrayBuffer();
-      runOnJS(onFrameCaptured)(buf, frame.width, frame.height);
+      const input = resizeRgbToModelInput(
+        buf, frame.width, frame.height, 112, 112, 'minus1_to_1',
+      );
+      const backboneOut = mobilefacenet.model.runSync([input]);
+      const rawEmb = new Float32Array(backboneOut[0] as Float32Array);
+      const adapterOut = mobilefacenetAdapter.model.runSync([rawEmb]);
+      const adapted = new Float32Array(adapterOut[0] as Float32Array);
+      const normalized = l2Normalize(adapted);
+      jsEmbeddingReady(Array.from(normalized));
     },
-    [captureRequested, onFrameCaptured],
+    [captureRequested, mobilefacenet.model, mobilefacenetAdapter.model, jsEmbeddingReady],
   );
 
   // ---------------------------------------------------------------------------

@@ -1,13 +1,13 @@
 /**
  * Frame preprocessing for TFLite model inputs.
- * Camera must have pixelFormat="rgba" set so the buffer is row-major RGBA.
+ * Camera must have pixelFormat="rgb" set so the buffer is row-major RGB (3 bytes/pixel).
  * Called on the React JS thread — not inside a worklet.
  *
  * Normalization per shared_contracts/README.md:
  *   MobileFaceNet / BlazeFace → [-1, 1]  via (x - 127.5) / 127.5
  *   ShuffleNet / FaceMesh     → [0, 1]   via x / 255
  */
-export function resizeRgbaToModelInput(
+export function resizeRgbToModelInput(
   srcRgba: ArrayBuffer | Uint8Array,
   srcW: number,
   srcH: number,
@@ -24,7 +24,7 @@ export function resizeRgbaToModelInput(
     const srcY = Math.min(Math.floor(y * yScale), srcH - 1);
     for (let x = 0; x < dstW; x++) {
       const srcX = Math.min(Math.floor(x * xScale), srcW - 1);
-      const srcIdx = (srcY * srcW + srcX) * 4; // RGBA — 4 bytes/pixel
+      const srcIdx = (srcY * srcW + srcX) * 3; // RGB — 3 bytes/pixel
       const dstIdx = (y * dstW + x) * 3; // RGB  — 3 floats/pixel
       const r = src[srcIdx];
       const g = src[srcIdx + 1];
