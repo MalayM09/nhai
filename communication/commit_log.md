@@ -48,6 +48,7 @@ Keep entries to one line. If a commit needs explanation, add a `note_*.md` and r
 - 2026-06-03 · 667684d · backend(mock): FastAPI mock sync backend — POST /attendance, POST /enrollment, GET /embeddings/region/{id}, debug endpoints, JSON persistence. Tested all 6 endpoints, embedding dim validation (512), ready for Sahil to wire sync queue against it
 - 2026-06-03 · 0f3e147 · demo prep — Python+adb latency benchmark script (tools/benchmark/), 3-scene attack-rejection storyboard (docs/demo_video_storyboard.md), and handoff/ folder for Sahil's laptop (START_HERE + 6 numbered files: current state, today's priorities, run commands, known issues, Jun 4 plan, Claude Code briefing)
 - 2026-06-04 · 981f914 · docs(handoff): flag latent pixelFormat/frameUtils stride bug — camera switched to "rgb" (3 byte/px) in d404521 but resizeRgbaToModelInput still reads 4-byte stride from 91cf8dc; START_HERE points to it, 04_known_issues has full diagnosis + 1-char fix, 02_priorities adds Step 2.5; also rewrote Step 3 since Sahil's existing helpers are functionally equivalent to Malay's
+- 2026-06-05 · PENDING · fix(mobile/scan): 4 TS errors from 42c65d4 — add missing useMemo import; preprocess frame.toArrayBuffer() through resizeRgbToModelInput before BlazeFace (128×128 [-1,1]) and FaceMesh (192×192 [0,1]) instead of passing raw Frame to runSync; both detection models share one toArrayBuffer per worklet pass. tsc 4 → 0
 
 ## Teammate (Mobile)
 

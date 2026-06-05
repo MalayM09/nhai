@@ -14,7 +14,7 @@
  * Phase 4: add face-crop affine alignment (eyes horizontal) before embedding.
  */
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Alert,
   Animated,
@@ -311,8 +311,11 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
         return;
       }
 
-      // --- BlazeFace: detect face presence ---
-      const bfOut = blazeface.model.runSync([frame]);
+      const detectBuf = frame.toArrayBuffer();
+
+      // --- BlazeFace: detect face presence ([1,128,128,3] [-1,1]) ---
+      const bfInput = resizeRgbToModelInput(detectBuf, frame.width, frame.height, 128, 128, 'minus1_to_1');
+      const bfOut = blazeface.model.runSync([bfInput]);
       const scores = bfOut[1] as Float32Array; // [1,896,1]
       let hasFace = false;
       for (let i = 0; i < scores.length; i++) {
@@ -328,8 +331,9 @@ export default function ScanScreen({goBack}: Props): React.JSX.Element {
         return;
       }
 
-      // --- FaceMesh: extract landmarks ---
-      const fmOut = facemesh.model.runSync([frame]);
+      // --- FaceMesh: extract landmarks ([1,192,192,3] [0,1]) ---
+      const fmInput = resizeRgbToModelInput(detectBuf, frame.width, frame.height, 192, 192, 'zero_to_1');
+      const fmOut = facemesh.model.runSync([fmInput]);
       const rawLandmarks = fmOut[0] as Float32Array; // [1,1,1,1404]
       const presenceLogit = (fmOut[1] as Float32Array)[0]; // scalar
 
